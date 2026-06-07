@@ -1,6 +1,6 @@
-# mylife
+# finvia
 
-A new Flutter project.
+Finvia - Akıllı Yaşam Asistanı.
 
 ## Getting Started
 
