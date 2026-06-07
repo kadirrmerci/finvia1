@@ -18,18 +18,18 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await NotificationService().init();
-  runApp(const MyLifeApp());
+  runApp(const FinviaApp());
 }
 
-class MyLifeApp extends StatefulWidget {
-  const MyLifeApp({super.key});
-  static _MyLifeAppState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_MyLifeAppState>();
+class FinviaApp extends StatefulWidget {
+  const FinviaApp({super.key});
+  static _FinviaAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_FinviaAppState>();
   @override
-  State<MyLifeApp> createState() => _MyLifeAppState();
+  State<FinviaApp> createState() => _FinviaAppState();
 }
 
-class _MyLifeAppState extends State<MyLifeApp> {
+class _FinviaAppState extends State<FinviaApp> {
   ThemeMode _themeMode = ThemeMode.light;
 
   @override
