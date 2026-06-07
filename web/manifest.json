@@ -1,11 +1,11 @@
 {
-    "name": "mylife",
-    "short_name": "mylife",
+    "name": "Finvia",
+    "short_name": "Finvia",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Finvia - Akıllı Yaşam Asistanı.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
