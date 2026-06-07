@@ -45,9 +45,9 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    String channelId = 'elite_life_channel',
-    String channelName = 'Elite Life Bildirimleri',
-    String channelDesc = 'Elite Life uygulama bildirimleri',
+    String channelId = 'finvia_channel',
+    String channelName = 'Finvia Bildirimleri',
+    String channelDesc = 'Finvia uygulama bildirimleri',
   }) async {
     final androidDetails = _getAndroidDetails(
       channelId: channelId,
