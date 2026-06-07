@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "24056648348",
+    "project_id": "elite-life-48631",
+    "storage_bucket": "elite-life-48631.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:24056648348:android:516148fb0026a07110d359",
+        "android_client_info": {
+          "package_name": "com.elitelife.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrsJnopmWS6z3ublm5G--qN1ijLbOqnQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
