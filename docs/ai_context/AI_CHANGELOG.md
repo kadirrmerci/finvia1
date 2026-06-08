@@ -4,6 +4,28 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-09 — Image-only splash refinement push’u
+
+Durum:
+
+- Kullanıcının onayıyla splash davranışı yeniden düzenlendi.
+- Amaç: görünen splash katmanında ayrı renk/fallback/inpainting algısı olmadan yalnızca verilen Finvia görselini full-screen göstermek.
+
+Yapılan ana değişiklikler:
+
+- `pubspec.yaml`
+  - Üst seviye `color` ve `color_dark` splash ayarları kaldırıldı.
+  - `background_image` ve `background_image_dark` görsel odaklı kullanımda bırakıldı.
+- `lib/main.dart`
+  - `_FullScreenSplash` artık `Scaffold` ve `backgroundColor` kullanmıyor.
+  - Splash root’u doğrudan `SizedBox.expand + Image(BoxFit.cover)` oldu.
+  - Splash sırasında sistem UI `immersiveSticky` yapılıp splash bitince `edgeToEdge` olarak geri alınıyor.
+
+Notlar:
+
+- Android 12 native splash API’si zorunlu olarak bir background color alanı ister; gerçek full-screen görsel ilk Flutter frame’de `_FullScreenSplash` ile gösterilir.
+- Localde `dart format lib/main.dart`, `flutter analyze` ve cihaz testi çalıştırılmalı.
+
 ## 2026-06-09 — Full-screen splash refactor push’u
 
 Durum:
