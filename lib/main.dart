@@ -70,25 +70,72 @@ class _FinviaAppState extends State<FinviaApp> {
         useMaterial3: true,
       ),
       themeMode: _themeMode,
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
+      home: const _StartupSplashGate(),
+    );
+  }
+}
+
+class _StartupSplashGate extends StatefulWidget {
+  const _StartupSplashGate();
+
+  @override
+  State<_StartupSplashGate> createState() => _StartupSplashGateState();
+}
+
+class _StartupSplashGateState extends State<_StartupSplashGate> {
+  bool _showSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      setState(() => _showSplash = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return const _FullScreenSplash();
+    }
+
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _FullScreenSplash();
+        }
+
+        if (snapshot.hasData) {
+          final user = snapshot.data!;
+          if (user.emailVerified) {
+            return const MainNavigation();
           }
-          if (snapshot.hasData) {
-            final user = snapshot.data!;
-            if (user.emailVerified) {
-              return const MainNavigation();
-            } else {
-              FirebaseAuth.instance.signOut();
-              return const LoginScreen();
-            }
-          }
+
+          FirebaseAuth.instance.signOut();
           return const LoginScreen();
-        },
+        }
+
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+class _FullScreenSplash extends StatelessWidget {
+  const _FullScreenSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF82BE33),
+      body: SizedBox.expand(
+        child: Image(
+          image: AssetImage('assets/splash/splash_logo.png'),
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+        ),
       ),
     );
   }
