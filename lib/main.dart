@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/notes/notes_screen.dart';
@@ -88,10 +89,24 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      setState(() => _showSplash = false);
-    });
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    Future.delayed(const Duration(milliseconds: 900), _hideSplash);
+  }
+
+  @override
+  void dispose() {
+    _restoreSystemUi();
+    super.dispose();
+  }
+
+  void _hideSplash() {
+    if (!mounted) return;
+    _restoreSystemUi();
+    setState(() => _showSplash = false);
+  }
+
+  void _restoreSystemUi() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   @override
@@ -128,14 +143,11 @@ class _FullScreenSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF82BE33),
-      body: SizedBox.expand(
-        child: Image(
-          image: AssetImage('assets/splash/splash_logo.png'),
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-        ),
+    return const SizedBox.expand(
+      child: Image(
+        image: AssetImage('assets/splash/splash_logo.png'),
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
       ),
     );
   }
