@@ -4,6 +4,33 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-09 — Full-screen splash refactor push’u
+
+Durum:
+
+- Kullanıcının onayıyla splash davranışı için repo’ya push yapıldı.
+- Amaç: siyah zemin üzerinde ortalanmış logo yerine Finvia görselini full-screen splash olarak göstermek.
+
+Yapılan ana değişiklikler:
+
+- `pubspec.yaml`
+  - `flutter_native_splash` siyah `#0a0a0a` zeminden yeşil `#82BE33` fallback rengine alındı.
+  - `image` yerine `background_image` yaklaşımı ayarlandı.
+  - `android_gravity: fill` ve `ios_content_mode: scaleAspectFill` eklendi.
+- `lib/main.dart`
+  - İlk Flutter frame için `_StartupSplashGate` ve `_FullScreenSplash` eklendi.
+  - Splash görseli `BoxFit.cover` ile full-screen gösteriliyor.
+- Android generated splash XML
+  - `launch_background.xml` ve `drawable-v21/launch_background.xml` full-screen bitmap fill kullanacak şekilde güncellendi.
+  - Android 12 light/dark fallback splash rengi yeşile çekildi.
+- iOS
+  - `LaunchScreen.storyboard` içindeki launch image `scaleAspectFill` olarak güncellendi.
+
+Notlar:
+
+- GitHub connector binary PNG replacement desteklemediği için splash asset dosyası bu push içinde değiştirilmedi; mevcut `assets/splash/splash_logo.png` kullanıldı.
+- Localde `dart run flutter_native_splash:create`, `dart format lib/main.dart`, `flutter analyze` ve cihaz testi çalıştırılmalı.
+
 ## 2026-06-08 — AI context dokümanları repo’ya eklendi
 
 Durum:
