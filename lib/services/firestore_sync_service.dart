@@ -1,0 +1,3 @@
+class FirestoreSyncService {
+  const FirestoreSyncService();
+}
