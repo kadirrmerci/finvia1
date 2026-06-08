@@ -10,78 +10,27 @@
 > - **S3 / UX/maintainability:** Kullanıcı deneyimi veya bakım kalitesi etkilenir.
 > - **S4 / Nice-to-have:** İyileştirme.
 
-## S0 — Build-blocker / derleme riski
+## Çözülen build-blocker'lar
 
-### 1. `AndroidManifest.xml` içinde geçersiz komut satırı var
+### macOS açılışta siyah ekranda kalma sorunu çözüldü
 
-Dosya:
+`NotificationService.init()` içindeki `InitializationSettings` yalnızca
+Android ve iOS ayarlarını içeriyordu. macOS'ta
+`flutter_local_notifications`, `runApp()` çağrılmadan önce exception
+fırlattığı için pencere siyah kalıyordu.
 
-- `android/app/src/main/AndroidManifest.xml`
+Servise macOS Darwin initialization ve notification detail ayarları eklendi.
 
-Manifest içinde şu satır XML elemanı gibi duruyor:
+### 1. `AndroidManifest.xml` içindeki geçersiz komut satırı çözüldü
 
-```xml
-flutter pub add flutter_local_notifications
-```
+`android/app/src/main/AndroidManifest.xml` artık geçerli XML yapısında ve eski
+`flutter pub add flutter_local_notifications` satırını içermiyor.
 
-Bu satır Android manifest XML formatını bozabilir ve Android build’i kırabilir.
+### 2. Kredi kartı model dosyası mevcut
 
-Önerilen çözüm:
-
-- Bu satırı manifestten sil.
-- Paket zaten `pubspec.yaml` içinde dependency olarak var.
-- Sonra `flutter build apk --debug` veya `flutter run` ile test et.
-
-### 2. `lib/models/credit_card.dart` dosyası bulunamadı
-
-`DatabaseService` ve `FinanceScreen` şu modeli import ediyor/kullanıyor:
-
-```dart
-import '../models/credit_card.dart';
-```
-
-ve
-
-```dart
-import '../../models/credit_card.dart';
-```
-
-Fakat taramada `lib/models/credit_card.dart` dosyası bulunamadı.
-
-Etkisi:
-
-- Dart analyzer/build `Target of URI doesn't exist` hatası verebilir.
-- `CreditCard` ve `CreditCardStatement` tipleri tanımsız kalabilir.
-- Finans ekranı ve database service build’i kırabilir.
-
-Önerilen çözüm:
-
-- `lib/models/credit_card.dart` dosyasını oluştur.
-- İçinde `CreditCard` ve `CreditCardStatement` modellerini DB tablo kolonlarıyla uyumlu tanımla.
-- DB tabloları:
-  - `credit_cards`
-  - `credit_card_statements`
-
-Beklenen `CreditCard` alanları:
-
-- `id`
-- `bankName`
-- `cardName`
-- `creditLimit`
-- `currentDebt`
-- `statementDay`
-- `dueDay`
-- `color`
-
-Beklenen `CreditCardStatement` alanları:
-
-- `id`
-- `cardId`
-- `cardName`
-- `amount`
-- `paidAmount`
-- `statementDate`
-- `dueDate`
+`lib/models/credit_card_model.dart`, `CreditCard` ve
+`CreditCardStatement` modellerini içeriyor. Servis ve finans ekranı bu
+dosyayı kullanıyor.
 
 ## S1 — Firebase / platform config riskleri
 

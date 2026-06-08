@@ -76,7 +76,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ayarlar', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Ayarlar',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: ListView(
         children: [
@@ -246,77 +249,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildProfileCard() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(children: [
-        GestureDetector(
-          onTap: _showEditProfile,
-          child: CircleAvatar(
-            radius: 32,
-            backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.1),
-            child: _name.isNotEmpty
-                ? Text(
-                    _name[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _showEditProfile,
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+              child: _name.isNotEmpty
+                  ? Text(
+                      _name[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6C63FF),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.person,
+                      size: 32,
                       color: Color(0xFF6C63FF),
                     ),
-                  )
-                : const Icon(Icons.person, size: 32, color: Color(0xFF6C63FF)),
+            ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _name.isNotEmpty ? _name : 'İsim ekle',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                _email.isNotEmpty ? _email : 'Email ekle',
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _name.isNotEmpty ? _name : 'İsim ekle',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _email.isNotEmpty ? _email : 'Email ekle',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.edit, color: Color(0xFF6C63FF)),
-          onPressed: _showEditProfile,
-        ),
-      ]),
+          IconButton(
+            icon: const Icon(Icons.edit, color: Color(0xFF6C63FF)),
+            onPressed: _showEditProfile,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildColorPicker() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Tema Rengi', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: _colors.map((c) {
-            final isSelected = _selectedColor == c['color'];
-            return GestureDetector(
-              onTap: () {
-                setState(() => _selectedColor = c['color']);
-                _saveSettings();
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Color(int.parse('0xFF${c['color']}')),
-                  shape: BoxShape.circle,
-                  border: isSelected ? Border.all(color: Colors.black, width: 2.5) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tema Rengi',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: _colors.map((c) {
+              final isSelected = _selectedColor == c['color'];
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _selectedColor = c['color']);
+                  _saveSettings();
+                },
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Color(int.parse('0xFF${c['color']}')),
+                    shape: BoxShape.circle,
+                    border: isSelected
+                        ? Border.all(color: Colors.black, width: 2.5)
+                        : null,
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white, size: 20)
+                      : null,
                 ),
-                child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
-              ),
-            );
-          }).toList(),
-        ),
-      ]),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -326,21 +348,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(children: [
-            Icon(Icons.attach_money, color: Color(0xFF6C63FF)),
-            SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Para Birimi', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                Text('Finansal işlemlerde kullanılır', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-          ]),
+          const Row(
+            children: [
+              Icon(Icons.attach_money, color: Color(0xFF6C63FF)),
+              SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Para Birimi',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    'Finansal işlemlerde kullanılır',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
           DropdownButton<String>(
             value: _currency,
             underline: const SizedBox(),
-            items: _currencies.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            items: _currencies
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
             onChanged: (v) {
               setState(() => _currency = v ?? '₺');
               _saveSettings();
@@ -379,7 +411,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return ListTile(
       leading: Icon(icon, color: color ?? const Color(0xFF6C63FF)),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w500, color: color)),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.w500, color: color),
+      ),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: onTap,
@@ -404,7 +439,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           left: 20,
@@ -412,47 +449,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
           top: 20,
           bottom: MediaQuery.of(context).viewInsets.bottom + 20,
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Profili Düzenle', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: nameC,
-            decoration: InputDecoration(
-              labelText: 'Ad Soyad',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Profili Düzenle',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: emailC,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: 'Email',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nameC,
+              decoration: InputDecoration(
+                labelText: 'Ad Soyad',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              onPressed: () async {
-                setState(() {
-                  _name = nameC.text;
-                  _email = emailC.text;
-                });
-                await _saveSettings();
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
             ),
-          ),
-        ]),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailC,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C63FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () async {
+                  setState(() {
+                    _name = nameC.text;
+                    _email = emailC.text;
+                  });
+                  await _saveSettings();
+                  if (context.mounted) Navigator.pop(context);
+                },
+                child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -463,10 +512,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [const Text('🚀 '), Text(feature)]),
-        content: const Text('Bu özellik yakında geliyor!\nFirebase entegrasyonu ile aktif olacak.'),
+        content: const Text(
+          'Bu özellik yakında geliyor!\nFirebase entegrasyonu ile aktif olacak.',
+        ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6C63FF),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context),
             child: const Text('Tamam'),
           ),
@@ -488,7 +542,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('İptal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (context.mounted) Navigator.pop(context);
@@ -506,18 +563,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('⚠️ Tüm Verileri Sil'),
-        content: const Text('Tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz!'),
+        content: const Text(
+          'Tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz!',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('İptal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tüm veriler silindi'), backgroundColor: Colors.red),
+                const SnackBar(
+                  content: Text('Tüm veriler silindi'),
+                  backgroundColor: Colors.red,
+                ),
               );
             },
             child: const Text('Sil'),

@@ -8,7 +8,7 @@ import '../models/stock_holding.dart';
 import '../models/note.dart';
 import '../models/health_record.dart';
 import '../models/habit.dart';
-import '../models/credit_card.dart';
+import '../models/credit_card_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -40,9 +40,11 @@ class DatabaseService {
     await db.execute('''CREATE TABLE IF NOT EXISTS subscriptions(
       id TEXT PRIMARY KEY, title TEXT, amount REAL,
       category TEXT, billingDay INTEGER, color TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS debts(
+    await db.execute(
+      '''CREATE TABLE IF NOT EXISTS debts(
       id TEXT PRIMARY KEY, title TEXT, totalAmount REAL,
-      paidAmount REAL, monthlyPayment REAL, startDate TEXT, interestRate REAL)''');
+      paidAmount REAL, monthlyPayment REAL, startDate TEXT, interestRate REAL)''',
+    );
     await db.execute('''CREATE TABLE IF NOT EXISTS budgets(
       id TEXT PRIMARY KEY, category TEXT, limitAmount REAL, month TEXT)''');
     await db.execute('''CREATE TABLE IF NOT EXISTS holdings(
@@ -69,16 +71,21 @@ class DatabaseService {
   // Notes
   Future<void> insertNote(Note n) async {
     final db = await database;
-    await db.insert('notes', n.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'notes',
+      n.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Note>> getNotes() async {
     final db = await database;
-    final maps = await db.query('notes',
-        where: 'isArchived = ?',
-        whereArgs: [0],
-        orderBy: 'isPinned DESC, createdAt DESC');
+    final maps = await db.query(
+      'notes',
+      where: 'isArchived = ?',
+      whereArgs: [0],
+      orderBy: 'isPinned DESC, createdAt DESC',
+    );
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
@@ -95,8 +102,11 @@ class DatabaseService {
   // Transactions
   Future<void> insertTransaction(FinanceTransaction t) async {
     final db = await database;
-    await db.insert('transactions', t.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'transactions',
+      t.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<FinanceTransaction>> getTransactions() async {
@@ -113,8 +123,11 @@ class DatabaseService {
   // Subscriptions
   Future<void> insertSubscription(Subscription s) async {
     final db = await database;
-    await db.insert('subscriptions', s.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'subscriptions',
+      s.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Subscription>> getSubscriptions() async {
@@ -131,8 +144,11 @@ class DatabaseService {
   // Debts
   Future<void> insertDebt(Debt d) async {
     final db = await database;
-    await db.insert('debts', d.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'debts',
+      d.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Debt>> getDebts() async {
@@ -154,8 +170,11 @@ class DatabaseService {
   // Budgets
   Future<void> insertBudget(Budget b) async {
     final db = await database;
-    await db.insert('budgets', b.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'budgets',
+      b.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Budget>> getBudgets() async {
@@ -172,8 +191,11 @@ class DatabaseService {
   // Holdings
   Future<void> insertHolding(StockHolding s) async {
     final db = await database;
-    await db.insert('holdings', s.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'holdings',
+      s.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<StockHolding>> getHoldings() async {
@@ -190,8 +212,11 @@ class DatabaseService {
   // Health Records
   Future<void> insertHealthRecord(HealthRecord r) async {
     final db = await database;
-    await db.insert('health_records', r.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'health_records',
+      r.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<HealthRecord>> getHealthRecords() async {
@@ -208,8 +233,11 @@ class DatabaseService {
   // Habits
   Future<void> insertHabit(Habit h) async {
     final db = await database;
-    await db.insert('habits', h.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'habits',
+      h.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Habit>> getHabits() async {
@@ -220,8 +248,7 @@ class DatabaseService {
 
   Future<void> updateHabit(Habit h) async {
     final db = await database;
-    await db.update('habits', h.toMap(),
-        where: 'id = ?', whereArgs: [h.id]);
+    await db.update('habits', h.toMap(), where: 'id = ?', whereArgs: [h.id]);
   }
 
   Future<void> deleteHabit(String id) async {
@@ -232,8 +259,11 @@ class DatabaseService {
   // Credit Cards
   Future<void> insertCreditCard(CreditCard c) async {
     final db = await database;
-    await db.insert('credit_cards', c.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'credit_cards',
+      c.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<CreditCard>> getCreditCards() async {
@@ -244,22 +274,32 @@ class DatabaseService {
 
   Future<void> updateCreditCard(CreditCard c) async {
     final db = await database;
-    await db.update('credit_cards', c.toMap(),
-        where: 'id = ?', whereArgs: [c.id]);
+    await db.update(
+      'credit_cards',
+      c.toMap(),
+      where: 'id = ?',
+      whereArgs: [c.id],
+    );
   }
 
   Future<void> deleteCreditCard(String id) async {
     final db = await database;
     await db.delete('credit_cards', where: 'id = ?', whereArgs: [id]);
-    await db.delete('credit_card_statements',
-        where: 'cardId = ?', whereArgs: [id]);
+    await db.delete(
+      'credit_card_statements',
+      where: 'cardId = ?',
+      whereArgs: [id],
+    );
   }
 
   // Credit Card Statements
   Future<void> insertStatement(CreditCardStatement s) async {
     final db = await database;
-    await db.insert('credit_card_statements', s.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'credit_card_statements',
+      s.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<CreditCardStatement>> getStatements(String cardId) async {
@@ -275,13 +315,16 @@ class DatabaseService {
 
   Future<void> updateStatement(CreditCardStatement s) async {
     final db = await database;
-    await db.update('credit_card_statements', s.toMap(),
-        where: 'id = ?', whereArgs: [s.id]);
+    await db.update(
+      'credit_card_statements',
+      s.toMap(),
+      where: 'id = ?',
+      whereArgs: [s.id],
+    );
   }
 
   Future<void> deleteStatement(String id) async {
     final db = await database;
-    await db.delete('credit_card_statements',
-        where: 'id = ?', whereArgs: [id]);
+    await db.delete('credit_card_statements', where: 'id = ?', whereArgs: [id]);
   }
 }

@@ -25,26 +25,26 @@ class CreditCard {
       creditLimit > 0 ? (currentDebt / creditLimit * 100) : 0;
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'bankName': bankName,
-        'cardName': cardName,
-        'creditLimit': creditLimit,
-        'currentDebt': currentDebt,
-        'statementDay': statementDay,
-        'dueDay': dueDay,
-        'color': color,
-      };
+    'id': id,
+    'bankName': bankName,
+    'cardName': cardName,
+    'creditLimit': creditLimit,
+    'currentDebt': currentDebt,
+    'statementDay': statementDay,
+    'dueDay': dueDay,
+    'color': color,
+  };
 
   factory CreditCard.fromMap(Map<String, dynamic> map) => CreditCard(
-        id: map['id'],
-        bankName: map['bankName'],
-        cardName: map['cardName'],
-        creditLimit: map['creditLimit'],
-        currentDebt: map['currentDebt'],
-        statementDay: map['statementDay'],
-        dueDay: map['dueDay'],
-        color: map['color'] ?? '#6C63FF',
-      );
+    id: map['id'],
+    bankName: map['bankName'],
+    cardName: map['cardName'],
+    creditLimit: map['creditLimit'],
+    currentDebt: map['currentDebt'],
+    statementDay: map['statementDay'],
+    dueDay: map['dueDay'],
+    color: map['color'] ?? '#6C63FF',
+  );
 
   CreditCard copyWith({
     String? bankName,
@@ -54,17 +54,16 @@ class CreditCard {
     int? statementDay,
     int? dueDay,
     String? color,
-  }) =>
-      CreditCard(
-        id: id,
-        bankName: bankName ?? this.bankName,
-        cardName: cardName ?? this.cardName,
-        creditLimit: creditLimit ?? this.creditLimit,
-        currentDebt: currentDebt ?? this.currentDebt,
-        statementDay: statementDay ?? this.statementDay,
-        dueDay: dueDay ?? this.dueDay,
-        color: color ?? this.color,
-      );
+  }) => CreditCard(
+    id: id,
+    bankName: bankName ?? this.bankName,
+    cardName: cardName ?? this.cardName,
+    creditLimit: creditLimit ?? this.creditLimit,
+    currentDebt: currentDebt ?? this.currentDebt,
+    statementDay: statementDay ?? this.statementDay,
+    dueDay: dueDay ?? this.dueDay,
+    color: color ?? this.color,
+  );
 }
 
 class CreditCardStatement {
@@ -88,18 +87,17 @@ class CreditCardStatement {
 
   double get remainingAmount => amount - paidAmount;
   bool get isPaid => paidAmount >= amount;
-  bool get isOverdue =>
-      !isPaid && DateTime.now().isAfter(dueDate);
+  bool get isOverdue => !isPaid && DateTime.now().isAfter(dueDate);
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'cardId': cardId,
-        'cardName': cardName,
-        'amount': amount,
-        'paidAmount': paidAmount,
-        'statementDate': statementDate.toIso8601String(),
-        'dueDate': dueDate.toIso8601String(),
-      };
+    'id': id,
+    'cardId': cardId,
+    'cardName': cardName,
+    'amount': amount,
+    'paidAmount': paidAmount,
+    'statementDate': statementDate.toIso8601String(),
+    'dueDate': dueDate.toIso8601String(),
+  };
 
   factory CreditCardStatement.fromMap(Map<String, dynamic> map) =>
       CreditCardStatement(
@@ -112,14 +110,13 @@ class CreditCardStatement {
         dueDate: DateTime.parse(map['dueDate']),
       );
 
-  CreditCardStatement copyWith({double? paidAmount}) =>
-      CreditCardStatement(
-        id: id,
-        cardId: cardId,
-        cardName: cardName,
-        amount: amount,
-        paidAmount: paidAmount ?? this.paidAmount,
-        statementDate: statementDate,
-        dueDate: dueDate,
-      );
+  CreditCardStatement copyWith({double? paidAmount}) => CreditCardStatement(
+    id: id,
+    cardId: cardId,
+    cardName: cardName,
+    amount: amount,
+    paidAmount: paidAmount ?? this.paidAmount,
+    statementDate: statementDate,
+    dueDate: dueDate,
+  );
 }

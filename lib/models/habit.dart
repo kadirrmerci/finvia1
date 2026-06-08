@@ -37,10 +37,10 @@ class Habit {
 
   bool isTodayCompleted() {
     final today = DateTime.now();
-    return completedDays.any((d) =>
-        d.year == today.year &&
-        d.month == today.month &&
-        d.day == today.day);
+    return completedDays.any(
+      (d) =>
+          d.year == today.year && d.month == today.month && d.day == today.day,
+    );
   }
 
   Map<String, dynamic> toMap() => {
@@ -58,11 +58,12 @@ class Habit {
     title: map['title'],
     type: map['type'],
     startDate: DateTime.parse(map['startDate']),
-    completedDays: map['completedDays'] != null && map['completedDays'].isNotEmpty
+    completedDays:
+        map['completedDays'] != null && map['completedDays'].isNotEmpty
         ? (map['completedDays'] as String)
-            .split(',')
-            .map((d) => DateTime.parse(d))
-            .toList()
+              .split(',')
+              .map((d) => DateTime.parse(d))
+              .toList()
         : [],
     emoji: map['emoji'],
     motivation: map['motivation'],

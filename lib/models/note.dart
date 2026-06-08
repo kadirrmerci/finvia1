@@ -55,16 +55,15 @@ class Note {
     DateTime? reminderTime,
     bool? isPinned,
     bool? isArchived,
-  }) =>
-      Note(
-        id: id,
-        title: title ?? this.title,
-        content: content ?? this.content,
-        category: category ?? this.category,
-        color: color ?? this.color,
-        createdAt: createdAt,
-        reminderTime: reminderTime ?? this.reminderTime,
-        isPinned: isPinned ?? this.isPinned,
-        isArchived: isArchived ?? this.isArchived,
-      );
+  }) => Note(
+    id: id,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    category: category ?? this.category,
+    color: color ?? this.color,
+    createdAt: createdAt,
+    reminderTime: reminderTime ?? this.reminderTime,
+    isPinned: isPinned ?? this.isPinned,
+    isArchived: isArchived ?? this.isArchived,
+  );
 }

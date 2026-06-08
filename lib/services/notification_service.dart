@@ -24,12 +24,16 @@ class NotificationService {
     tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings(
+    const darwin = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    const settings = InitializationSettings(android: android, iOS: ios);
+    const settings = InitializationSettings(
+      android: android,
+      iOS: darwin,
+      macOS: darwin,
+    );
     await _plugin.initialize(settings);
 
     _initialized = true;
@@ -39,7 +43,8 @@ class NotificationService {
   Future<void> _requestAndroidNotificationPermission() async {
     final androidImplementation = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidImplementation?.requestNotificationsPermission();
   }
 
@@ -86,6 +91,7 @@ class NotificationService {
     return NotificationDetails(
       android: androidDetails,
       iOS: const DarwinNotificationDetails(),
+      macOS: const DarwinNotificationDetails(),
     );
   }
 

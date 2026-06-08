@@ -15,22 +15,20 @@ import 'screens/auth/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().init();
   runApp(const FinviaApp());
 }
 
 class FinviaApp extends StatefulWidget {
   const FinviaApp({super.key});
-  static _FinviaAppState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_FinviaAppState>();
+  static FinviaAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<FinviaAppState>();
   @override
-  State<FinviaApp> createState() => _FinviaAppState();
+  State<FinviaApp> createState() => FinviaAppState();
 }
 
-class _FinviaAppState extends State<FinviaApp> {
+class FinviaAppState extends State<FinviaApp> {
   ThemeMode _themeMode = ThemeMode.light;
 
   @override
@@ -172,10 +170,7 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

@@ -4,6 +4,31 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-09 — macOS siyah açılış ekranı düzeltmesi
+
+Durum:
+
+- macOS'ta uygulama penceresinin açılıp siyah kalmasının nedeni bulundu.
+- `NotificationService.init()` macOS ayarı olmadan çağrıldığı için
+  `flutter_local_notifications`, `runApp()` öncesinde exception fırlatıyordu.
+- `InitializationSettings` içine `macOS` Darwin ayarları eklendi.
+- Bildirim gösterme ve planlama detaylarına da macOS Darwin ayarları eklendi.
+- `dart analyze lib test` ve `flutter test --no-pub` başarıyla tamamlandı.
+- Tam macOS build doğrulaması, çalışma ortamının Xcode `sandbox-exec` ve Swift
+  Package Manager servislerine izin vermemesi nedeniyle tamamlanamadı.
+
+## 2026-06-09 — Yerel çalıştırma ve build doğrulaması
+
+Durum:
+
+- Flutter 3.44.1 / Dart 3.12.1 ile bağımlılıklar başarıyla çözüldü.
+- Eski `mylife` paketini ve `MyApp` sınıfını kullanan starter test Finvia için güncellendi.
+- Kredi kartı model dosyası platformlar arası uyumlu küçük harfli ada taşındı.
+- Güncel Flutter API deprecation ve lint uyarıları temizlendi.
+- `flutter test` ve `flutter build web` başarıyla tamamlandı.
+- Android SDK kurulu olmadığı için Android build çalıştırılamadı.
+- Xcode ek bileşenleri eksik olduğu için iOS/macOS build doğrulanamadı.
+
 ## 2026-06-09 — Image-only splash refinement push’u
 
 Durum:

@@ -349,7 +349,9 @@ Computed/behavior:
 
 ### `CreditCard` / `CreditCardStatement`
 
-`DatabaseService` ve `FinanceScreen` bu modelleri import ediyor/kullanıyor; taramada `lib/models/credit_card.dart` dosyası bulunamadı. Bu durum build-blocker olabilir. Ayrıntı `KNOWN_ISSUES.md` içinde.
+Dosya: `lib/models/credit_card_model.dart`
+
+`DatabaseService` ve `FinanceScreen` bu modelleri kullanır.
 
 ## 9. Notlar modülü
 
@@ -616,6 +618,12 @@ Notification türleri:
 - Kilo ölçüm hatırlatıcısı
 - Alışkanlık hatırlatıcısı
 
+Platform initialization:
+
+- Android initialization ayarı mevcut.
+- iOS ve macOS için Darwin initialization ayarları mevcut.
+- Bildirim detayları Android, iOS ve macOS platformlarını içeriyor.
+
 Mevcut schedule yaklaşımı:
 
 - `Future.delayed`
@@ -645,9 +653,8 @@ Mevcut değerler:
 - Android label: `Finvia`
 - MainActivity package: `com.finvia.app`
 
-Önemli issue:
-
-- `AndroidManifest.xml` içinde geçersiz görünen `flutter pub add flutter_local_notifications` satırı var. Bu XML build’ini kırabilir.
+Android manifest geçerli XML yapısındadır ve local notification receiver
+tanımlarını içerir.
 
 ### iOS
 
@@ -739,10 +746,7 @@ Dikkat:
 
 ## 18. Önerilen geliştirme öncelikleri
 
-1. Build-blocker düzeltmeleri:
-   - `AndroidManifest.xml` geçersiz satır
-   - eksik `credit_card.dart`
-   - Firebase bundle/package uyumları
+1. Firebase bundle/package uyumlarını doğrulama.
 2. `flutter analyze` temizliği.
 3. DB migration sistemini güvenli hale getirme.
 4. Bildirimleri `Future.delayed` yerine gerçek schedule sistemine taşıma.

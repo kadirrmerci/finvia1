@@ -40,8 +40,7 @@ class StockAlertService {
 
   void _startMonitoring() {
     _timer?.cancel();
-    _timer = Timer.periodic(
-        const Duration(minutes: 5), (_) => _checkAlerts());
+    _timer = Timer.periodic(const Duration(minutes: 5), (_) => _checkAlerts());
   }
 
   Future<void> _checkAlerts() async {
@@ -79,8 +78,10 @@ class StockAlertService {
     try {
       final url =
           'https://query1.finance.yahoo.com/v8/finance/chart/$symbol?interval=1d&range=1d';
-      final response = await http.get(Uri.parse(url),
-          headers: {'User-Agent': 'Mozilla/5.0'});
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'Mozilla/5.0'},
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return data['chart']['result'][0]['meta']['regularMarketPrice']
