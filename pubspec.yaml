@@ -43,18 +43,18 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/icon.png"
 
 flutter_native_splash:
-  color: "#0a0a0a"
-  image: assets/splash/splash_logo.png
+  color: "#82BE33"
+  background_image: assets/splash/splash_logo.png
   fullscreen: true
-  android_gravity: center
-  ios_content_mode: center
-  image_dark: assets/splash/splash_logo.png
-  color_dark: "#0a0a0a"
+  android_gravity: fill
+  ios_content_mode: scaleAspectFill
+  color_dark: "#82BE33"
+  background_image_dark: assets/splash/splash_logo.png
   android_12:
-    image: assets/splash/splash_logo.png
-    color: "#0a0a0a"
-    image_dark: assets/splash/splash_logo.png
-    color_dark: "#0a0a0a"
+    image: assets/splash/android12_transparent_splash_icon.png
+    color: "#82BE33"
+    image_dark: assets/splash/android12_transparent_splash_icon.png
+    color_dark: "#82BE33"
 
 flutter:
   uses-material-design: true
