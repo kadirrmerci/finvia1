@@ -230,6 +230,24 @@ Kullanılan pattern:
 - Lokal yazımlar önce SQLite'a kaydedilir, ardından Firestore'a yansıtılır.
 - Silinen Firestore kayıtları `isDeleted: true` tombstone alanıyla korunur.
 - Ayarlar ekranı manuel senkronizasyon ve gerçek başarı/hata sonucu sunar.
+- Android ana manifesti release dahil tüm build türlerinde `INTERNET` izni
+  içerir.
+- macOS debug/profile ve release sandbox entitlement dosyaları outbound
+  bağlantılar için `com.apple.security.network.client` yetkisini içerir.
+- macOS release entitlement dosyası Firebase Auth için Keychain Sharing access
+  group içerir. Debug/profile build'i VS Code'un ad-hoc imzasıyla çalışabilmesi
+  için bu imzalı dağıtım entitlement'ını istemez.
+- macOS CocoaPods kurulumu, yalnızca `DEBUG` build'lerinde ve yalnızca macOS'ta
+  Firebase Auth'un data-protection Keychain sorgusunu normal Keychain'e
+  düşürür. Böylece Apple Development sertifikası olmayan yerel VS Code
+  build'lerinde email hesabı oluşturma tamamlanabilir; release build'leri
+  Firebase'in standart Keychain Sharing davranışını kullanır.
+- Proje, iOS/macOS plugin bağımlılıklarında mevcut CocoaPods kurulumunu kullanır;
+  deneysel Swift Package Manager entegrasyonu `pubspec.yaml` üzerinden kapalıdır.
+- VS Code macOS launch ve integrated terminal ayarları CocoaPods/Ruby için
+  `en_US.UTF-8` locale kullanır.
+- iOS, web, Windows ve Linux normal HTTPS/Firebase trafiği için ayrıca
+  manifest tabanlı internet izni istemez.
 
 ## 8. Model katmanı
 

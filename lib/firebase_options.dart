@@ -69,11 +69,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyDbJkyM32EfRC4CNUw9IJsHxs6WGkQbFC8',
-    appId: '1:24056648348:ios:6b01611cf17b864010d359',
+    appId: '1:24056648348:ios:8ea531c8b217fef510d359',
     messagingSenderId: '24056648348',
     projectId: 'elite-life-48631',
     storageBucket: 'elite-life-48631.firebasestorage.app',
-    iosBundleId: 'com.example.mylife',
+    iosBundleId: 'com.finvia.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

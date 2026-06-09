@@ -93,6 +93,12 @@ Etkisi:
 - Ya Linux için Firebase init koşullu devre dışı bırakılır, ya desteklenen alternatif kullanılır.
 - Ya da README/context içinde Linux hedef dışı olarak belirtilir.
 
+Not:
+
+- Bu durum bir internet izni eksikliği değildir. Linux için geçerli Firebase
+  options/native destek stratejisi yapılandırılmadan Auth ve Firestore
+  başlatılamaz.
+
 ## S1 — Veri kaybı / migration riskleri
 
 ### 6. DB v8 kullanıcı izolasyonu migration'ı eklendi
@@ -201,6 +207,16 @@ Risk:
 - Provider bazlı kontrol yap.
 - Email/password provider için email verification iste.
 - Phone provider ve Google provider için ayrı kabul kriteri belirle.
+
+Güncel durum:
+
+- Ana auth kapısı password provider için email verification ister; Google ve
+  telefon provider'larını bu kontrolden muaf tutar.
+- Email kayıt sırasında Auth hesabı oluşup Firestore profil yazımı yarıda
+  kalırsa aynı email/şifreyle tekrar kayıt denemesi eksik `users/{uid}`
+  dokümanını onarır.
+- Firestore profil yazma hataları artık sessizce yutulmaz ve kullanıcıya
+  gösterilir.
 
 ### 12. Google login Firestore profil alanlarını eksik yazabilir
 

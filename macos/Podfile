@@ -35,8 +35,39 @@ target 'Runner' do
   end
 end
 
+def allow_adhoc_firebase_auth_keychain(installer)
+  original_mode = nil
+  auth_keychain_file = File.join(
+    installer.sandbox.root,
+    'FirebaseAuth/FirebaseAuth/Sources/Swift/Storage/AuthKeychainServices.swift'
+  )
+  return unless File.exist?(auth_keychain_file)
+
+  source = File.read(auth_keychain_file)
+  marker = '#if !os(macOS) || !DEBUG'
+  return if source.include?(marker)
+
+  original = '    query[kSecUseDataProtectionKeychain as String] = true'
+  replacement = <<~SWIFT.chomp
+    #if !os(macOS) || !DEBUG
+        query[kSecUseDataProtectionKeychain as String] = true
+    #endif
+  SWIFT
+
+  unless source.include?(original)
+    raise 'FirebaseAuth keychain implementation changed; update the macOS debug compatibility patch.'
+  end
+
+  original_mode = File.stat(auth_keychain_file).mode
+  File.chmod(original_mode | 0200, auth_keychain_file)
+  File.write(auth_keychain_file, source.sub(original, replacement))
+ensure
+  File.chmod(original_mode, auth_keychain_file) if original_mode
+end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
   end
+  allow_adhoc_firebase_auth_keychain(installer)
 end

@@ -4,6 +4,73 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-09 — VS Code macOS launch SwiftPM düzeltmesi
+
+Durum:
+
+- Flutter'ın deneysel Swift Package Manager entegrasyonu proje seviyesinde
+  kapatıldı.
+- iOS/macOS plugin bağımlılıkları repo'da mevcut CocoaPods kurulumu üzerinden
+  çözülür.
+- Xcode projesinden daha önce eklenmiş `FlutterGeneratedPluginSwiftPackage`
+  referansları kaldırıldı.
+- VS Code launch ve terminal ortamına CocoaPods için `en_US.UTF-8` locale
+  eklendi.
+- VS Code/macOS launch sırasında oluşan
+  SwiftPM dependency resolution ve CocoaPods `ASCII-8BIT` hatalarının proje
+  tarafındaki nedenleri kaldırıldı.
+
+## 2026-06-09 — macOS Keychain ve yarım kalan kayıt onarımı
+
+Durum:
+
+- Çalışan macOS bundle ID'si `com.finvia.app` olmasına rağmen Firebase options
+  eski `com.example.mylife` Apple app kaydını kullanıyordu. Firebase projesinde
+  `com.finvia.app` için gerçek Apple app kaydı oluşturuldu ve macOS app ID
+  `1:24056648348:ios:8ea531c8b217fef510d359` olarak güncellendi. Auth hesabı
+  oluşurken Firestore isteğinin Apple app/API key kimliği nedeniyle
+  reddedilmesine yol açan temel yapılandırma uyuşmazlığı giderildi.
+- Profil yazımından önceki zorunlu `getIdToken(true)` kaldırıldı. Bu çağrı,
+  eski/uyuşmayan Apple app kimliğinde Firestore'a ulaşmadan Secure Token
+  servisinden `caller does not have permission` döndürüyor ve hata yanlışlıkla
+  profil yazma hatası gibi gösteriliyordu. Kayıt veya giriş yanıtındaki geçerli
+  Auth token'ı Firestore SDK tarafından doğal akışında kullanılır.
+- Kısmi kayıt onarımındaki hata mesajı artık hatanın `Firebase Auth` mı yoksa
+  `Firestore` mu olduğunu ve hata kodunu açıkça gösterir.
+- macOS release target'ına Firebase Auth için Keychain Sharing access group
+  eklendi. Debug/profile target'ından bu entitlement kaldırılarak VS Code'un
+  ad-hoc imzalı geliştirme build'inin çalışması sağlandı.
+- Apple Development sertifikası olmayan ad-hoc macOS `DEBUG` build'leri için
+  CocoaPods post-install adımı eklendi. Firebase Auth bu build'lerde normal
+  macOS Keychain'i kullanır; signed release build'lerinde data-protection
+  Keychain ve Keychain Sharing kullanılmaya devam eder.
+- Email kayıt akışı Auth hesabı ile Firestore profilini ayrı başarılar olarak
+  ele alacak şekilde düzenlendi.
+- Firestore profil hatalarının sessizce yutulması kaldırıldı.
+- Auth hesabı oluşmuş fakat `users/{uid}` dokümanı eksik kalmışsa aynı
+  email/şifreyle tekrar kayıt denemesi profili onarır.
+- Onarım girişinden hemen sonraki Firestore profil yazımı, aktif Firebase Auth
+  kullanıcısının UID'sini doğrudan doğrular ve ID token'ını yeniler. Event
+  stream'inden yeni emission beklenmediği için gereksiz 5 saniyelik timeout
+  oluşmaz. İlk istek native Auth/Firestore token senkronizasyonu nedeniyle
+  `permission-denied` dönerse yalnızca bir kez yenilenmiş token ile tekrar
+  denenir.
+- Kayıt sonrası Keychain kaynaklı sign-out hatası başarılı profil kaydını
+  artık başarısız kayıt gibi göstermez.
+
+## 2026-06-09 — Firebase ağ izinleri tamamlandı
+
+Durum:
+
+- Android ana manifestine `INTERNET` izni eklendi; izin artık release
+  build'lerinde de mevcut.
+- macOS debug/profile ve release sandbox entitlement dosyalarına outbound
+  network client yetkisi eklendi.
+- iOS, web, Windows ve Linux için gereksiz/geniş güvenlik istisnaları
+  eklenmedi; standart HTTPS trafiği platform tarafından zaten desteklenir.
+- Linux Firebase options eksikliği ayrı bir platform yapılandırma riski olarak
+  korunuyor.
+
 ## 2026-06-09 — Kullanıcı bazlı SQLite ve Firestore sync
 
 Durum:
