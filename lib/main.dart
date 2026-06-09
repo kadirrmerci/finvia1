@@ -130,7 +130,6 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
             );
           }
 
-          FirebaseAuth.instance.signOut();
           return const LoginScreen();
         }
 

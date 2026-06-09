@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1125,18 +1127,110 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _saveUserToFirestore(User user, {String? phone}) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.uid != user.uid) {
+      throw FirebaseAuthException(
+        code: 'user-token-expired',
+        message: 'Aktif Firebase oturumu kullanıcı profiliyle eşleşmiyor.',
+      );
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final values = <String, dynamic>{
+      'uid': user.uid,
+      'name': user.displayName ?? _nameController.text.trim(),
+      'email': user.email ?? _emailController.text.trim(),
+      'phone': phone ?? _phoneController.text.trim(),
+      'age': int.tryParse(_ageController.text) ?? 0,
+      'city': _selectedCity,
+      'district': _selectedDistrict,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    Future<void> saveProfile() async {
+      await userRef.set(values, SetOptions(merge: true));
+    }
+
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': user.displayName ?? _nameController.text.trim(),
-        'email': user.email ?? _emailController.text.trim(),
-        'phone': phone ?? _phoneController.text.trim(),
-        'age': int.tryParse(_ageController.text) ?? 0,
-        'city': _selectedCity,
-        'district': _selectedDistrict,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await saveProfile();
+    } on FirebaseException catch (error) {
+      if (error.plugin != 'cloud_firestore' ||
+          error.code != 'permission-denied') {
+        rethrow;
+      }
+
+      final retryUser = FirebaseAuth.instance.currentUser;
+      if (retryUser?.uid != user.uid) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await saveProfile();
+    }
+  }
+
+  Future<void> _signOutAfterRegistration() async {
+    try {
+      await FirebaseAuth.instance.signOut().timeout(
+        const Duration(seconds: 15),
+      );
     } catch (e) {
-      debugPrint('Firestore hatası: $e');
+      debugPrint('Kayıt sonrası çıkış yapılamadı: $e');
+    }
+  }
+
+  Future<T> _runRegistrationStep<T>(
+    String step,
+    Future<T> Function() operation,
+  ) async {
+    debugPrint('Email kayıt adımı başladı: $step');
+    try {
+      final result = await operation().timeout(const Duration(seconds: 20));
+      debugPrint('Email kayıt adımı tamamlandı: $step');
+      return result;
+    } on TimeoutException {
+      debugPrint('Email kayıt adımı zaman aşımına uğradı: $step');
+      throw TimeoutException(step);
+    } catch (error) {
+      debugPrint('Email kayıt adımı başarısız: $step - $error');
+      rethrow;
+    }
+  }
+
+  Future<void> _completeEmailRegistration(User user) async {
+    await _runRegistrationStep(
+      'kullanıcı adını güncelleme',
+      () => user.updateDisplayName(_nameController.text.trim()),
+    );
+    await _runRegistrationStep(
+      'profil kaydını oluşturma',
+      () => _saveUserToFirestore(user),
+    );
+    if (!user.emailVerified) {
+      await _runRegistrationStep(
+        'doğrulama e-postası gönderme',
+        user.sendEmailVerification,
+      );
+    }
+    await _signOutAfterRegistration();
+    if (mounted) _showVerificationDialog();
+  }
+
+  Future<bool> _repairPartialEmailRegistration() async {
+    try {
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      final user = credential.user;
+      if (user == null) return false;
+      await _completeEmailRegistration(user);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        return false;
+      }
+      rethrow;
     }
   }
 
@@ -1182,18 +1276,26 @@ class _LoginScreenState extends State<LoginScreen> {
             );
         final user = credential.user;
         if (user != null) {
-          await user.updateDisplayName(_nameController.text.trim());
-          try {
-            await user.sendEmailVerification();
-          } catch (e) {
-            debugPrint('Email gönderilemedi: $e');
-          }
-          await _saveUserToFirestore(user);
-          await FirebaseAuth.instance.signOut();
-          if (mounted) _showVerificationDialog();
+          await _completeEmailRegistration(user);
         }
       }
     } on FirebaseAuthException catch (e) {
+      if (!_isLogin && e.code == 'email-already-in-use') {
+        try {
+          if (await _repairPartialEmailRegistration()) return;
+        } on FirebaseException catch (repairError) {
+          final source = repairError.plugin == 'cloud_firestore'
+              ? 'Firestore'
+              : 'Firebase Auth';
+          _showError(
+            'Hesap mevcut ancak profil kaydı sırasında $source hatası oluştu '
+            '(${repairError.code}): '
+            '${repairError.message ?? repairError.code}',
+          );
+          return;
+        }
+      }
+
       String message = 'Hata: ${e.code}';
       if (e.code == 'user-not-found') message = 'Kullanıcı bulunamadı';
       if (e.code == 'wrong-password') message = 'Hatalı şifre';
@@ -1212,6 +1314,16 @@ class _LoginScreenState extends State<LoginScreen> {
         message = 'İnternet bağlantısı yok';
       }
       _showError(message);
+    } on FirebaseException catch (e) {
+      _showError(
+        'Hesap oluşturuldu ancak profil Firebase’e kaydedilemedi: '
+        '${e.message ?? e.code}',
+      );
+    } on TimeoutException catch (e) {
+      _showError(
+        'Kayıt işlemi "${e.message ?? 'bilinmeyen adım'}" adımında zaman '
+        'aşımına uğradı. Lütfen bağlantınızı kontrol edip tekrar deneyin.',
+      );
     } catch (e) {
       _showError('Beklenmedik hata: $e');
     } finally {
