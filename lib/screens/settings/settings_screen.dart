@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../main.dart';
+import '../../services/database_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -156,8 +157,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildActionTile(
               icon: Icons.cloud,
               title: 'Bulut Senkronizasyon',
-              subtitle: 'Yakında - Firebase ile',
-              onTap: () => _showComingSoon('Bulut Senkronizasyon'),
+              subtitle: 'Verileri Firestore ile eşitle',
+              onTap: _syncCloudData,
             ),
             _buildActionTile(
               icon: Icons.group,
@@ -502,6 +503,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _syncCloudData() async {
+    final succeeded = await DatabaseService().syncCurrentUserData();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Veriler Firestore ile senkronize edildi.'
+              : 'Senkronizasyon tamamlanamadı. Lütfen tekrar deneyin.',
+        ),
+        backgroundColor: succeeded ? Colors.green : Colors.orange,
       ),
     );
   }

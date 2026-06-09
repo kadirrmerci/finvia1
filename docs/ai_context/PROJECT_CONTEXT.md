@@ -187,7 +187,7 @@ DB dosyası:
 
 DB version:
 
-- `7`
+- `8`
 
 Tablolar:
 
@@ -214,6 +214,22 @@ Kullanılan pattern:
 
 - `CREATE TABLE IF NOT EXISTS` mevcut tabloda yeni kolon yaratmaz.
 - Yeni kolon/tip değişikliği gerekiyorsa explicit migration yazılmalı.
+
+## Kullanıcı bazlı veri izolasyonu ve Firestore sync
+
+- Tüm SQLite veri tabloları `userId` kolonu içerir.
+- `DatabaseService`, CRUD işlemlerini oturumdaki Firebase kullanıcısının uid
+  değeriyle filtreler.
+- DB v8 migration sonrasında sahipsiz eski lokal kayıtlar, giriş yapan ilk
+  kullanıcıya atanır.
+- Firestore verileri `users/{uid}/{collection}/{id}` altında tutulur.
+- Desteklenen alt koleksiyonlar: `notes`, `transactions`, `subscriptions`,
+  `debts`, `budgets`, `holdings`, `health_records`, `habits`, `credit_cards`
+  ve `credit_card_statements`.
+- Uygulama girişinde local ve Firestore verileri bir kez eşitlenir.
+- Lokal yazımlar önce SQLite'a kaydedilir, ardından Firestore'a yansıtılır.
+- Silinen Firestore kayıtları `isDeleted: true` tombstone alanıyla korunur.
+- Ayarlar ekranı manuel senkronizasyon ve gerçek başarı/hata sonucu sunar.
 
 ## 8. Model katmanı
 

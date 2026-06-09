@@ -1,1 +1,28 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"elite-life-48631","appId":"1:24056648348:android:516148fb0026a07110d359","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"elite-life-48631","configurations":{"android":"1:24056648348:android:516148fb0026a07110d359","ios":"1:24056648348:ios:6b01611cf17b864010d359","macos":"1:24056648348:ios:6b01611cf17b864010d359","web":"1:24056648348:web:64890f10ecf3357d10d359","windows":"1:24056648348:web:d2c7ef37db45cdb410d359"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "elite-life-48631",
+          "appId": "1:24056648348:android:516148fb0026a07110d359",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "elite-life-48631",
+          "configurations": {
+            "android": "1:24056648348:android:516148fb0026a07110d359",
+            "ios": "1:24056648348:ios:6b01611cf17b864010d359",
+            "macos": "1:24056648348:ios:6b01611cf17b864010d359",
+            "web": "1:24056648348:web:64890f10ecf3357d10d359",
+            "windows": "1:24056648348:web:d2c7ef37db45cdb410d359"
+          }
+        }
+      }
+    }
+  }
+}

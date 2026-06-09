@@ -4,6 +4,22 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-09 — Kullanıcı bazlı SQLite ve Firestore sync
+
+Durum:
+
+- SQLite DB version `8` yapıldı ve tüm veri tablolarına `userId` eklendi.
+- Eski sahipsiz lokal veriler ilk giriş yapan kullanıcıya atanacak şekilde
+  migration eklendi.
+- Tüm CRUD işlemleri Firebase Auth uid değeriyle izole edildi.
+- Firestore kullanıcı alt koleksiyonlarına write-through, tombstone silme,
+  başlangıç sync'i ve manuel sync eklendi.
+- Password dışındaki auth provider'ları için email verification kapısı
+  düzeltildi.
+- `firestore.rules` ve Firebase rules yapılandırması eklendi.
+- Mevcut `credit_card_model.dart` korundu; patch'teki ikinci model dosyası
+  oluşturulmadı.
+
 ## 2026-06-09 — macOS siyah açılış ekranı düzeltmesi
 
 Durum:

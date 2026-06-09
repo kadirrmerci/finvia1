@@ -8,6 +8,7 @@ import 'screens/stocks/stocks_screen.dart';
 import 'screens/health/health_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'services/notification_service.dart';
+import 'services/database_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -122,8 +123,11 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
 
         if (snapshot.hasData) {
           final user = snapshot.data!;
-          if (user.emailVerified) {
-            return const MainNavigation();
+          if (_canEnterApp(user)) {
+            return _DataSyncGate(
+              userId: user.uid,
+              child: const MainNavigation(),
+            );
           }
 
           FirebaseAuth.instance.signOut();
@@ -133,6 +137,11 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
         return const LoginScreen();
       },
     );
+  }
+
+  bool _canEnterApp(User user) {
+    final providerIds = user.providerData.map((p) => p.providerId).toSet();
+    return !providerIds.contains('password') || user.emailVerified;
   }
 }
 
@@ -147,6 +156,58 @@ class _FullScreenSplash extends StatelessWidget {
         fit: BoxFit.cover,
         alignment: Alignment.center,
       ),
+    );
+  }
+}
+
+class _DataSyncGate extends StatefulWidget {
+  const _DataSyncGate({required this.userId, required this.child});
+
+  final String userId;
+  final Widget child;
+
+  @override
+  State<_DataSyncGate> createState() => _DataSyncGateState();
+}
+
+class _DataSyncGateState extends State<_DataSyncGate> {
+  late Future<bool> _syncFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFuture = DatabaseService().syncCurrentUserData();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DataSyncGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _syncFuture = DatabaseService().syncCurrentUserData();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _syncFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Veriler senkronize ediliyor...'),
+                ],
+              ),
+            ),
+          );
+        }
+        return widget.child;
+      },
     );
   }
 }

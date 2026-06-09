@@ -95,39 +95,20 @@ Etkisi:
 
 ## S1 — Veri kaybı / migration riskleri
 
-### 6. DB migration stratejisi güvenli değil
+### 6. DB v8 kullanıcı izolasyonu migration'ı eklendi
 
-Dosya:
+Durum:
 
-- `lib/services/database_service.dart`
+- DB version `8` oldu ve tüm veri tablolarına güvenli biçimde `userId` eklendi.
+- CRUD sorguları oturumdaki Firebase uid değeriyle sınırlandırıldı.
+- Eski sahipsiz lokal kayıtlar ilk giriş yapan kullanıcıya atanır.
 
-Mevcut yaklaşım:
+Kalan risk:
 
-```dart
-onUpgrade: (db, oldVersion, newVersion) async => await _createTables(db)
-```
-
-Sorun:
-
-- `_createTables` içindeki `CREATE TABLE IF NOT EXISTS` mevcut tabloyu değiştirmez.
-- Yeni kolon eklendiğinde eski kullanıcı DB’sinde kolon oluşmaz.
-- Sonuç: `no such column` veya veri uyumsuzluğu.
-
-Önerilen çözüm:
-
-- `onUpgrade` içinde versiyon bazlı migration yaz.
-- Örnek:
-
-```dart
-onUpgrade: (db, oldVersion, newVersion) async {
-  if (oldVersion < 8) {
-    await db.execute('ALTER TABLE notes ADD COLUMN ...');
-  }
-}
-```
-
-- Migration helper oluştur.
-- Her schema değişikliğini `AI_CHANGELOG.md` ve `PROJECT_CONTEXT.md` içine işle.
+- Eski kayıtların geçmişteki gerçek sahibini belirlemek mümkün değildir.
+- Firestore sync MVP düzeyindedir: write-through, başlangıç ve manuel sync
+  vardır; realtime listener ve conflict resolution henüz yoktur.
+- `firestore.rules` deploy edilmeden production güvenliği tamamlanmış sayılmaz.
 
 ### 7. DB dosya adı değişikliği eski kullanıcı verisini ayırabilir
 
@@ -303,16 +284,18 @@ Etkisi:
 - Geri alınamaz uyarısı.
 - Sonra tüm ekran state’lerini reload et.
 
-### 18. Backup/export/cloud sync placeholder durumda
+### 18. Backup/export ve aile paylaşımı placeholder durumda
 
 Ayarlar ekranında:
 
 - Veriyi Yedekle
 - Veriyi Dışa Aktar
-- Bulut Senkronizasyon
 - Aile Paylaşımı
 
 “Yakında” mesajı gösteriyor.
+
+Bulut Senkronizasyon artık başlangıçta ve Ayarlar ekranındaki manuel aksiyonla
+Firestore üzerinden çalışıyor.
 
 Önerilen çözüm:
 
