@@ -191,7 +191,7 @@ DB dosyası:
 
 DB version:
 
-- `9`
+- `12`
 
 Tablolar:
 

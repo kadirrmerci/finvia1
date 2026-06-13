@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../models/health_record.dart';
 import '../../models/habit.dart';
+import '../../services/body_fat_service.dart';
 import '../../services/database_service.dart';
 import '../../services/notification_service.dart';
 
@@ -18,22 +19,26 @@ class _HealthScreenState extends State<HealthScreen>
   late TabController _tabController;
   List<HealthRecord> _records = [];
   List<Habit> _habits = [];
+  double? _targetWeight;
   final _db = DatabaseService();
   final _uuid = const Uuid();
+  final _bodyFatService = const BodyFatService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadAll();
   }
 
   Future<void> _loadAll() async {
     final records = await _db.getHealthRecords();
     final habits = await _db.getHabits();
+    final goal = await _db.getHealthGoal();
     setState(() {
       _records = records;
       _habits = habits;
+      _targetWeight = (goal?['targetWeight'] as num?)?.toDouble();
     });
   }
 
@@ -49,18 +54,21 @@ class _HealthScreenState extends State<HealthScreen>
           controller: _tabController,
           tabs: const [
             Tab(text: 'Kilo Takibi'),
+            Tab(text: 'Yağ Oranı'),
             Tab(text: 'Alışkanlıklar'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildWeight(), _buildHabits()],
+        children: [_buildWeight(), _buildBodyFat(), _buildHabits()],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_tabController.index == 0) {
             _showAddWeight();
+          } else if (_tabController.index == 1) {
+            _showAddBodyFatMeasurement();
           } else {
             _showAddHabit();
           }
@@ -110,6 +118,9 @@ class _HealthScreenState extends State<HealthScreen>
     final first = _records.last;
     final diff = latest.weight - first.weight;
     final isLoss = diff <= 0;
+    final targetDiff = _targetWeight == null
+        ? null
+        : latest.weight - _targetWeight!;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -136,6 +147,31 @@ class _HealthScreenState extends State<HealthScreen>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.flag_outlined)),
+              title: Text(
+                _targetWeight == null
+                    ? 'Hedef kilo belirlenmedi'
+                    : 'Hedef kilo: ${_targetWeight!.toStringAsFixed(1)} kg',
+              ),
+              subtitle: Text(
+                targetDiff == null
+                    ? 'Hedef belirleyerek kilo ilerlemeni raporla.'
+                    : targetDiff > 0
+                    ? 'Hedefe ${targetDiff.toStringAsFixed(1)} kg kaldı.'
+                    : 'Hedefin ${targetDiff.abs().toStringAsFixed(1)} kg altındasın.',
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: _showTargetWeightDialog,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -305,6 +341,271 @@ class _HealthScreenState extends State<HealthScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildBodyFat() {
+    final bodyFatRecords = _records
+        .where((r) => r.bodyFatPercentage != null)
+        .toList(growable: false);
+
+    if (bodyFatRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.percent, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'Henüz yağ oranı ölçümü yok',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+            const Text(
+              '+ butonuna basarak ACE ölçümü ekle',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.alarm),
+              label: const Text('Haftalık Ölçüm Hatırlatıcısı'),
+              onPressed: _showBodyFatReminderDialog,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final latest = bodyFatRecords.first;
+    final previous = bodyFatRecords.length > 1 ? bodyFatRecords[1] : null;
+    final change = previous == null
+        ? null
+        : latest.bodyFatPercentage! - previous.bodyFatPercentage!;
+    final latestFfmi =
+        latest.ffmi ??
+        (latest.height == null
+            ? null
+            : _bodyFatService.calculateFfmi(
+                weightKg: latest.weight,
+                heightCm: latest.height!,
+                bodyFatPercentage: latest.bodyFatPercentage!,
+              ));
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _metricPill(
+                'BW',
+                '${latest.weight.toStringAsFixed(1)} kg',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _metricPill(
+                'BF',
+                '%${latest.bodyFatPercentage!.toStringAsFixed(2)}',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _metricPill('FFMI', latestFfmi?.toStringAsFixed(2) ?? '-'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _weightCard(
+                'Güncel Yağ Oranı',
+                '%${latest.bodyFatPercentage!.toStringAsFixed(1)}',
+                Icons.percent,
+                Colors.deepOrange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _weightCard(
+                'Son Değişim',
+                change == null
+                    ? 'İlk ölçüm'
+                    : '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+                change == null || change <= 0
+                    ? Icons.trending_down
+                    : Icons.trending_up,
+                change == null || change <= 0 ? Colors.green : Colors.red,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.alarm),
+            label: const Text('Haftalık Yağ Oranı Hatırlatıcısı'),
+            onPressed: _showBodyFatReminderDialog,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Ölçülerim',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        _measurementSection('Vücut Ağırlığı', bodyFatRecords, (r) => r.weight),
+        _measurementSection('Boyun', bodyFatRecords, (r) => r.neck),
+        _measurementSection('Omuz', bodyFatRecords, (r) => r.shoulder),
+        _measurementSection('Göğüs', bodyFatRecords, (r) => r.chest),
+        _measurementSection('Kol', bodyFatRecords, (r) => r.arm),
+        _measurementSection('Bel', bodyFatRecords, (r) => r.waist),
+        _measurementSection('Kalça', bodyFatRecords, (r) => r.hip),
+        _measurementSection('Bacak', bodyFatRecords, (r) => r.thigh),
+        _measurementSection('Baldır', bodyFatRecords, (r) => r.calf),
+        _measurementSection(
+          'Yağ Oranı',
+          bodyFatRecords,
+          (r) => r.bodyFatPercentage,
+          suffix: '%',
+        ),
+        _measurementSection(
+          'FFMI',
+          bodyFatRecords,
+          (r) =>
+              r.ffmi ??
+              (r.height == null || r.bodyFatPercentage == null
+                  ? null
+                  : _bodyFatService.calculateFfmi(
+                      weightKg: r.weight,
+                      heightCm: r.height!,
+                      bodyFatPercentage: r.bodyFatPercentage!,
+                    )),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Ölçüm Raporu',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...bodyFatRecords.map(
+          (record) => Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.analytics)),
+              title: Text(
+                '%${record.bodyFatPercentage!.toStringAsFixed(1)} yağ oranı',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                '${DateFormat('dd MMMM yyyy').format(record.date)} • '
+                '${record.weight.toStringAsFixed(1)} kg • '
+                '${record.waist?.toStringAsFixed(1) ?? '-'} cm bel • '
+                '${_bodyFatService.aceCategory(gender: record.gender ?? 'male', bodyFat: record.bodyFatPercentage!)}',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricPill(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC83333),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _measurementSection(
+    String title,
+    List<HealthRecord> records,
+    double? Function(HealthRecord record) selector, {
+    String suffix = '',
+  }) {
+    final values = records
+        .where((record) => selector(record) != null)
+        .take(2)
+        .toList(growable: false);
+    if (values.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFFC83333),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text(
+                'Ölçü Ekle',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onTap: _showAddBodyFatMeasurement,
+            ),
+            ...values.map((record) {
+              final value = selector(record)!;
+              return ListTile(
+                title: Text(
+                  '${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}$suffix',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+                trailing: Text(_relativeDayText(record.date)),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _relativeDayText(DateTime date) {
+    final days = DateTime.now().difference(date).inDays;
+    if (days <= 0) return 'bugün';
+    return '$days gün önce';
   }
 
   Widget _buildHabits() {
@@ -642,6 +943,297 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
+  void _showTargetWeightDialog() {
+    final targetC = TextEditingController(
+      text: _targetWeight?.toStringAsFixed(1) ?? '',
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hedef Kilo'),
+        content: TextField(
+          controller: targetC,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Hedef kilo (kg)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final value = double.tryParse(targetC.text.replaceAll(',', '.'));
+              if (value == null) {
+                _showHealthMessage(
+                  'Geçerli bir hedef kilo gir.',
+                  isError: true,
+                );
+                return;
+              }
+              try {
+                await _db.saveHealthGoal(targetWeight: value);
+                await _loadAll();
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  _showHealthMessage('Hedef kilo kaydedildi.');
+                }
+              } catch (_) {
+                _showHealthMessage('Hedef kilo kaydedilemedi.', isError: true);
+              }
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBodyFatReminderDialog() async {
+    var selectedDay = DateTime.monday;
+    var selectedTime = const TimeOfDay(hour: 9, minute: 0);
+    const days = [
+      'Pazartesi',
+      'Salı',
+      'Çarşamba',
+      'Perşembe',
+      'Cuma',
+      'Cumartesi',
+      'Pazar',
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, set) => AlertDialog(
+          title: const Text('Yağ Oranı Hatırlatıcısı'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                initialValue: selectedDay,
+                decoration: const InputDecoration(
+                  labelText: 'Ölçüm günü',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(
+                  days.length,
+                  (index) => DropdownMenuItem(
+                    value: index + 1,
+                    child: Text(days[index]),
+                  ),
+                ),
+                onChanged: (value) => set(() => selectedDay = value ?? 1),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.access_time),
+                label: Text(selectedTime.format(context)),
+                onPressed: () async {
+                  final time = await showTimePicker(
+                    context: context,
+                    initialTime: selectedTime,
+                  );
+                  if (time != null) set(() => selectedTime = time);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await NotificationService().scheduleBodyFatReminder(
+                  weekday: selectedDay,
+                  hour: selectedTime.hour,
+                  minute: selectedTime.minute,
+                );
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddBodyFatMeasurement() {
+    final weightC = TextEditingController();
+    final heightC = TextEditingController();
+    final waistC = TextEditingController();
+    final neckC = TextEditingController();
+    final hipC = TextEditingController();
+    final shoulderC = TextEditingController();
+    final chestC = TextEditingController();
+    final armC = TextEditingController();
+    final thighC = TextEditingController();
+    final calfC = TextEditingController();
+    String gender = 'male';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, set) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'ACE Yağ Oranı Ölçümü',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'male', label: Text('Erkek')),
+                    ButtonSegment(value: 'female', label: Text('Kadın')),
+                  ],
+                  selected: {gender},
+                  onSelectionChanged: (value) =>
+                      set(() => gender = value.first),
+                ),
+                const SizedBox(height: 12),
+                _numberField(weightC, 'Kilo (kg)'),
+                _numberField(heightC, 'Boy (cm)'),
+                _numberField(neckC, 'Boyun ölçüsü (cm)'),
+                _numberField(shoulderC, 'Omuz ölçüsü (cm)'),
+                _numberField(chestC, 'Göğüs ölçüsü (cm)'),
+                _numberField(armC, 'Kol ölçüsü (cm)'),
+                _numberField(waistC, 'Bel ölçüsü (cm)'),
+                _numberField(hipC, 'Kalça ölçüsü (cm)'),
+                _numberField(thighC, 'Bacak ölçüsü (cm)'),
+                _numberField(calfC, 'Baldır ölçüsü (cm)'),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final weight = _parseDouble(weightC.text);
+                      final height = _parseDouble(heightC.text);
+                      final waist = _parseDouble(waistC.text);
+                      final neck = _parseDouble(neckC.text);
+                      final hip = _parseDouble(hipC.text);
+                      final shoulder = _parseDouble(shoulderC.text);
+                      final chest = _parseDouble(chestC.text);
+                      final arm = _parseDouble(armC.text);
+                      final thigh = _parseDouble(thighC.text);
+                      final calf = _parseDouble(calfC.text);
+                      if (weight == null ||
+                          height == null ||
+                          waist == null ||
+                          neck == null ||
+                          hip == null ||
+                          shoulder == null ||
+                          chest == null ||
+                          arm == null ||
+                          thigh == null ||
+                          calf == null) {
+                        _showHealthMessage(
+                          'Tüm ölçüm alanlarını doldurmalısın.',
+                          isError: true,
+                        );
+                        return;
+                      }
+                      try {
+                        final fat = _bodyFatService.calculateAceNavyBodyFat(
+                          gender: gender,
+                          heightCm: height,
+                          waistCm: waist,
+                          neckCm: neck,
+                          hipCm: hip,
+                        );
+                        final clampedFat = fat.clamp(2, 75).toDouble();
+                        final ffmi = _bodyFatService.calculateFfmi(
+                          weightKg: weight,
+                          heightCm: height,
+                          bodyFatPercentage: clampedFat,
+                        );
+                        final record = HealthRecord(
+                          id: _uuid.v4(),
+                          weight: weight,
+                          date: DateTime.now(),
+                          height: height,
+                          waist: waist,
+                          neck: neck,
+                          hip: hip,
+                          shoulder: shoulder,
+                          chest: chest,
+                          arm: arm,
+                          thigh: thigh,
+                          calf: calf,
+                          gender: gender,
+                          bodyFatPercentage: clampedFat,
+                          ffmi: ffmi,
+                        );
+                        await _db.insertHealthRecord(record);
+                        await _loadAll();
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          _showHealthMessage('Yağ oranı ölçümü kaydedildi.');
+                        }
+                      } catch (_) {
+                        _showHealthMessage(
+                          'Ölçüm kaydedilemedi. Değerleri kontrol et.',
+                          isError: true,
+                        );
+                      }
+                    },
+                    child: const Text('Hesapla ve Kaydet'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _numberField(TextEditingController controller, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  double? _parseDouble(String value) {
+    return double.tryParse(value.replaceAll(',', '.'));
+  }
+
+  void _showHealthMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+
   void _showAddWeight() {
     final weightC = TextEditingController();
     final noteC = TextEditingController();
@@ -700,16 +1292,27 @@ class _HealthScreenState extends State<HealthScreen>
                   ),
                 ),
                 onPressed: () async {
-                  if (weightC.text.isEmpty) return;
-                  final record = HealthRecord(
-                    id: _uuid.v4(),
-                    weight: double.parse(weightC.text.replaceAll(',', '.')),
-                    date: DateTime.now(),
-                    note: noteC.text.isNotEmpty ? noteC.text : null,
-                  );
-                  await _db.insertHealthRecord(record);
-                  await _loadAll();
-                  if (context.mounted) Navigator.pop(context);
+                  final weight = _parseDouble(weightC.text);
+                  if (weight == null) {
+                    _showHealthMessage('Geçerli bir kilo gir.', isError: true);
+                    return;
+                  }
+                  try {
+                    final record = HealthRecord(
+                      id: _uuid.v4(),
+                      weight: weight,
+                      date: DateTime.now(),
+                      note: noteC.text.isNotEmpty ? noteC.text : null,
+                    );
+                    await _db.insertHealthRecord(record);
+                    await _loadAll();
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      _showHealthMessage('Kilo kaydı eklendi.');
+                    }
+                  } catch (_) {
+                    _showHealthMessage('Kilo kaydı eklenemedi.', isError: true);
+                  }
                 },
                 child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
               ),

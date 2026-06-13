@@ -4,6 +4,16 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Test branch sağlık ve finans migration birleşimi
+
+Durum:
+
+- `origin/test` sağlık ölçümleri ile lokal finans/abonelik geliştirmeleri
+  birleştirildi.
+- İki tarafın farklı amaçlarla kullandığı DB v9 çakışması giderildi.
+- DB version `12` yapıldı; sağlık migration'ları korunurken abonelik kredi
+  kartı kolonları güvenli v12 migration'ına taşındı.
+
 ## 2026-06-13 — Kredi kartı ekstre tutarı güncellemesi
 
 Durum:

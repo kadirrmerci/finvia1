@@ -2,10 +2,23 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Finvia (macOS)",
+      "name": "Finvia (Chrome Profile)",
       "request": "launch",
       "type": "dart",
-      "deviceId": "macos",
+      "deviceId": "chrome",
+      "flutterMode": "profile",
+      "env": {
+        "LANG": "en_US.UTF-8",
+        "LC_ALL": "en_US.UTF-8"
+      }
+    },
+    {
+      "name": "Finvia (Chrome Release)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "flutterMode": "release",
+      "toolArgs": ["--no-wasm-dry-run"],
       "env": {
         "LANG": "en_US.UTF-8",
         "LC_ALL": "en_US.UTF-8"

@@ -6,6 +6,8 @@ import 'screens/notes/notes_screen.dart';
 import 'screens/finance/finance_screen.dart';
 import 'screens/stocks/stocks_screen.dart';
 import 'screens/health/health_screen.dart';
+import 'screens/learning_hub/learning_hub_screen.dart';
+import 'screens/tablo/tablo_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
@@ -224,6 +226,8 @@ class _MainNavigationState extends State<MainNavigation> {
     FinanceScreen(),
     StocksScreen(),
     HealthScreen(),
+    LearningHubScreen(),
+    TabloScreen(),
     SettingsScreen(),
   ];
 
@@ -256,6 +260,16 @@ class _MainNavigationState extends State<MainNavigation> {
             icon: Icon(Icons.favorite_outline),
             selectedIcon: Icon(Icons.favorite),
             label: 'Sağlık',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school),
+            label: 'LearningHub',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view),
+            label: 'Tablo',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

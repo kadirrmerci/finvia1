@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/transaction.dart';
@@ -17,7 +18,7 @@ class DatabaseService {
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  static const int _dbVersion = 9;
+  static const int _dbVersion = 12;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Database? _db;
@@ -56,14 +57,16 @@ class DatabaseService {
       await _migrateToV8UserScopedData(db);
     }
     if (oldVersion < 9) {
-      await _addColumnIfMissing(db, 'subscriptions', 'creditCardId', 'TEXT');
-      await _addColumnIfMissing(db, 'subscriptions', 'creditCardName', 'TEXT');
-      await _addColumnIfMissing(
-        db,
-        'subscriptions',
-        'lastChargedMonth',
-        'TEXT',
-      );
+      await _migrateToV9HealthTracking(db);
+    }
+    if (oldVersion < 10) {
+      await _migrateToV10BodyMeasurements(db);
+    }
+    if (oldVersion < 11) {
+      await _migrateToV11ArmAndFfmi(db);
+    }
+    if (oldVersion < 12) {
+      await _migrateToV12SubscriptionCreditCards(db);
     }
   }
 
@@ -93,7 +96,13 @@ class DatabaseService {
       reminderTime TEXT, isPinned INTEGER, isArchived INTEGER)''');
     await db.execute('''CREATE TABLE IF NOT EXISTS health_records(
       id TEXT PRIMARY KEY, userId TEXT DEFAULT '',
-      weight REAL, date TEXT, note TEXT)''');
+      weight REAL, date TEXT, note TEXT, height REAL, waist REAL, neck REAL,
+      hip REAL, shoulder REAL, chest REAL, arm REAL, thigh REAL, calf REAL,
+      gender TEXT, bodyFatPercentage REAL, ffmi REAL)''');
+    await db.execute('''CREATE TABLE IF NOT EXISTS health_goals(
+      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', targetWeight REAL,
+      bodyFatReminderDay INTEGER, bodyFatReminderHour INTEGER,
+      bodyFatReminderMinute INTEGER)''');
     await db.execute('''CREATE TABLE IF NOT EXISTS habits(
       id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, type TEXT,
       startDate TEXT, completedDays TEXT, emoji TEXT, motivation TEXT)''');
@@ -134,6 +143,81 @@ class DatabaseService {
     }
   }
 
+  Future<void> _migrateToV12SubscriptionCreditCards(Database db) async {
+    await _addColumnIfMissing(db, 'subscriptions', 'creditCardId', 'TEXT');
+    await _addColumnIfMissing(db, 'subscriptions', 'creditCardName', 'TEXT');
+    await _addColumnIfMissing(db, 'subscriptions', 'lastChargedMonth', 'TEXT');
+  }
+
+  Future<void> _migrateToV9HealthTracking(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
+    final names = columns.map((row) => row['name']).toSet();
+    for (final entry in {
+      'height': 'REAL',
+      'waist': 'REAL',
+      'neck': 'REAL',
+      'hip': 'REAL',
+      'gender': 'TEXT',
+      'bodyFatPercentage': 'REAL',
+    }.entries) {
+      if (!names.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
+        );
+      }
+    }
+    await db.execute('''CREATE TABLE IF NOT EXISTS health_goals(
+      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', targetWeight REAL,
+      bodyFatReminderDay INTEGER, bodyFatReminderHour INTEGER,
+      bodyFatReminderMinute INTEGER)''');
+  }
+
+  Future<void> _migrateToV10BodyMeasurements(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
+    final names = columns.map((row) => row['name']).toSet();
+    for (final entry in {
+      'shoulder': 'REAL',
+      'chest': 'REAL',
+      'thigh': 'REAL',
+      'calf': 'REAL',
+    }.entries) {
+      if (!names.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
+        );
+      }
+    }
+  }
+
+  Future<void> _migrateToV11ArmAndFfmi(Database db) async {
+    await _ensureHealthRecordMeasurementColumns(db);
+  }
+
+  Future<void> _ensureHealthRecordMeasurementColumns(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
+    final names = columns.map((row) => row['name']).toSet();
+    for (final entry in {
+      'height': 'REAL',
+      'waist': 'REAL',
+      'neck': 'REAL',
+      'hip': 'REAL',
+      'shoulder': 'REAL',
+      'chest': 'REAL',
+      'arm': 'REAL',
+      'thigh': 'REAL',
+      'calf': 'REAL',
+      'gender': 'TEXT',
+      'bodyFatPercentage': 'REAL',
+      'ffmi': 'REAL',
+    }.entries) {
+      if (!names.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
+        );
+      }
+    }
+  }
+
   Future<Database> _databaseForCurrentUser() async {
     final userId = _currentUserId;
     final db = await database;
@@ -160,6 +244,16 @@ class DatabaseService {
     Map<String, dynamic> values,
   ) async {
     final userId = _currentUserId;
+    if (kIsWeb) {
+      final remoteValues = {...values, 'userId': userId};
+      await _upsertRemote(
+        config,
+        values['id'].toString(),
+        remoteValues,
+        userId,
+      );
+      return;
+    }
     final db = await _databaseForCurrentUser();
     final localValues = {...values, 'userId': userId};
     await db.insert(
@@ -176,6 +270,11 @@ class DatabaseService {
     Map<String, dynamic> values,
   ) async {
     final userId = _currentUserId;
+    if (kIsWeb) {
+      final remoteValues = {...values, 'userId': userId};
+      await _upsertRemote(config, id, remoteValues, userId);
+      return;
+    }
     final db = await _databaseForCurrentUser();
     final localValues = {...values, 'userId': userId};
     await db.update(
@@ -189,6 +288,10 @@ class DatabaseService {
 
   Future<void> _deleteSynced(_SyncConfig config, String id) async {
     final userId = _currentUserId;
+    if (kIsWeb) {
+      await _markRemoteDeleted(config, id, userId);
+      return;
+    }
     final db = await _databaseForCurrentUser();
     await db.delete(
       config.table,
@@ -204,6 +307,14 @@ class DatabaseService {
     List<Object?>? whereArgs,
     String? orderBy,
   }) async {
+    if (kIsWeb) {
+      return _queryRemoteForCurrentUser(
+        table,
+        where: where,
+        whereArgs: whereArgs,
+        orderBy: orderBy,
+      );
+    }
     final userId = _currentUserId;
     final db = await _databaseForCurrentUser();
     final clauses = ['userId = ?'];
@@ -509,7 +620,55 @@ class DatabaseService {
 
   // Health Records
   Future<void> insertHealthRecord(HealthRecord r) async {
+    if (!kIsWeb) {
+      await _ensureHealthRecordMeasurementColumns(await database);
+    }
     await _insertSynced(_healthRecordsConfig, r.toMap());
+  }
+
+  Future<List<Map<String, dynamic>>> _queryRemoteForCurrentUser(
+    String table, {
+    String? where,
+    List<Object?>? whereArgs,
+    String? orderBy,
+  }) async {
+    final userId = _currentUserId;
+    final config = _syncConfigs.firstWhere((config) => config.table == table);
+    final snapshot = await _userDoc(userId).collection(config.collection).get();
+    var rows = snapshot.docs
+        .map((doc) {
+          final data = doc.data();
+          final values = <String, dynamic>{};
+          for (final column in config.columns) {
+            if (column == 'id') {
+              values['id'] = data['id'] ?? doc.id;
+            } else if (column == 'userId') {
+              values['userId'] = userId;
+            } else if (data.containsKey(column)) {
+              values[column] = _normalizeRemoteValue(data[column]);
+            }
+          }
+          return values;
+        })
+        .where((row) => row['isDeleted'] != true)
+        .toList();
+
+    if (where != null && whereArgs != null && where.contains('isArchived')) {
+      rows = rows.where((row) => row['isArchived'] == whereArgs.first).toList();
+    }
+
+    if (orderBy != null && orderBy.contains('date')) {
+      rows.sort((a, b) {
+        final aDate = DateTime.tryParse(a['date']?.toString() ?? '');
+        final bDate = DateTime.tryParse(b['date']?.toString() ?? '');
+        if (aDate == null || bDate == null) return 0;
+        return orderBy.contains('DESC')
+            ? bDate.compareTo(aDate)
+            : aDate.compareTo(bDate);
+      });
+    }
+
+    return rows;
   }
 
   Future<List<HealthRecord>> getHealthRecords() async {
@@ -522,6 +681,48 @@ class DatabaseService {
 
   Future<void> deleteHealthRecord(String id) async {
     await _deleteSynced(_healthRecordsConfig, id);
+  }
+
+  Future<Map<String, dynamic>?> getHealthGoal() async {
+    if (kIsWeb) {
+      final userId = _currentUserId;
+      final doc = await _userDoc(
+        userId,
+      ).collection('health_goals').doc('main').get();
+      return doc.data();
+    }
+    final maps = await _queryForCurrentUser('health_goals');
+    return maps.isEmpty ? null : maps.first;
+  }
+
+  Future<void> saveHealthGoal({
+    double? targetWeight,
+    int? bodyFatReminderDay,
+    int? bodyFatReminderHour,
+    int? bodyFatReminderMinute,
+  }) async {
+    final userId = _currentUserId;
+    if (kIsWeb) {
+      await _userDoc(userId).collection('health_goals').doc('main').set({
+        'id': 'main',
+        'userId': userId,
+        'targetWeight': targetWeight,
+        'bodyFatReminderDay': bodyFatReminderDay,
+        'bodyFatReminderHour': bodyFatReminderHour,
+        'bodyFatReminderMinute': bodyFatReminderMinute,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return;
+    }
+    final db = await _databaseForCurrentUser();
+    await db.insert('health_goals', {
+      'id': 'main',
+      'userId': userId,
+      'targetWeight': targetWeight,
+      'bodyFatReminderDay': bodyFatReminderDay,
+      'bodyFatReminderHour': bodyFatReminderHour,
+      'bodyFatReminderMinute': bodyFatReminderMinute,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   // Habits
@@ -694,7 +895,25 @@ class DatabaseService {
   static const _healthRecordsConfig = _SyncConfig(
     table: 'health_records',
     collection: 'health_records',
-    columns: {'id', 'userId', 'weight', 'date', 'note'},
+    columns: {
+      'id',
+      'userId',
+      'weight',
+      'date',
+      'note',
+      'height',
+      'waist',
+      'neck',
+      'hip',
+      'shoulder',
+      'chest',
+      'arm',
+      'thigh',
+      'calf',
+      'gender',
+      'bodyFatPercentage',
+      'ffmi',
+    },
   );
   static const _habitsConfig = _SyncConfig(
     table: 'habits',
