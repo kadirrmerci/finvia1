@@ -191,7 +191,7 @@ DB dosyası:
 
 DB version:
 
-- `8`
+- `9`
 
 Tablolar:
 
@@ -301,6 +301,9 @@ Alanlar:
 - `category`
 - `billingDay`
 - `color`
+- `creditCardId`
+- `creditCardName`
+- `lastChargedMonth`
 
 ### `Debt`
 
@@ -477,6 +480,9 @@ Grafik:
 Abonelikler:
 
 - Billing day üzerinden gün farkı hesaplanıyor.
+- Yeni aboneliklerde mevcut bir kredi kartı seçimi zorunludur.
+- Vadesi gelen abonelikler uygulama açıldığında bağlı kartın borcuna ayda bir kez
+  otomatik eklenir.
 - Hatırlatıcı NotificationService ile kuruluyor.
 
 Borçlar:

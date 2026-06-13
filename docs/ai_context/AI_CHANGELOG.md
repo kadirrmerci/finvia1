@@ -4,6 +4,27 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Borçlara ara ödeme desteği
+
+Durum:
+
+- Borç kartındaki periyodik ödeme butonu sola hizalanarak yanına mavi
+  `Ara Ödeme Yap` butonu eklendi.
+- Ara ödeme penceresinde girilen sıfırdan büyük ve kalan borcu aşmayan tutar,
+  borcun ödenen miktarına ve borç ödeme işlemlerine eklenir.
+
+## 2026-06-13 — Aboneliklerin kredi kartına otomatik yansıtılması
+
+Durum:
+
+- Yeni aboneliklerde mevcut kredi kartlarından birinin seçilmesi zorunlu hale
+  getirildi.
+- Abonelik modeline bağlı kart ve son borçlandırılan ay alanları eklendi.
+- SQLite DB version `9` yapıldı ve mevcut kullanıcılar için güvenli kolon
+  migration'ı eklendi.
+- Vadesi gelen abonelik tutarı uygulama açıldığında bağlı kartın toplam borcuna
+  ayda yalnızca bir kez eklenir.
+
 ## 2026-06-13 — Tekrarlanan email kaydının engellenmesi
 
 Durum:

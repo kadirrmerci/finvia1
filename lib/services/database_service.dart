@@ -17,7 +17,7 @@ class DatabaseService {
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  static const int _dbVersion = 8;
+  static const int _dbVersion = 9;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Database? _db;
@@ -55,6 +55,16 @@ class DatabaseService {
     if (oldVersion < 8) {
       await _migrateToV8UserScopedData(db);
     }
+    if (oldVersion < 9) {
+      await _addColumnIfMissing(db, 'subscriptions', 'creditCardId', 'TEXT');
+      await _addColumnIfMissing(db, 'subscriptions', 'creditCardName', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        'subscriptions',
+        'lastChargedMonth',
+        'TEXT',
+      );
+    }
   }
 
   Future<void> _createTables(Database db) async {
@@ -64,7 +74,8 @@ class DatabaseService {
       creditCardId TEXT, creditCardName TEXT)''');
     await db.execute('''CREATE TABLE IF NOT EXISTS subscriptions(
       id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, amount REAL,
-      category TEXT, billingDay INTEGER, color TEXT)''');
+      category TEXT, billingDay INTEGER, color TEXT, creditCardId TEXT,
+      creditCardName TEXT, lastChargedMonth TEXT)''');
     await db.execute(
       '''CREATE TABLE IF NOT EXISTS debts(
       id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, totalAmount REAL,
@@ -108,6 +119,18 @@ class DatabaseService {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       await _claimLegacyRowsForUser(db, userId);
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (!columns.any((row) => row['name'] == column)) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
     }
   }
 
@@ -362,6 +385,78 @@ class DatabaseService {
     return maps.map((m) => Subscription.fromMap(m)).toList();
   }
 
+  Future<int> applyDueSubscriptionCharges({DateTime? now}) async {
+    final userId = _currentUserId;
+    final db = await _databaseForCurrentUser();
+    final chargeDate = now ?? DateTime.now();
+    final monthKey =
+        '${chargeDate.year}-${chargeDate.month.toString().padLeft(2, '0')}';
+    final changedSubscriptions = <Map<String, dynamic>>[];
+    final changedCards = <Map<String, dynamic>>[];
+
+    await db.transaction((txn) async {
+      final subscriptions = await txn.query(
+        'subscriptions',
+        where:
+            'userId = ? AND creditCardId IS NOT NULL '
+            'AND creditCardId != ? AND billingDay <= ? '
+            'AND (lastChargedMonth IS NULL OR lastChargedMonth != ?)',
+        whereArgs: [userId, '', chargeDate.day, monthKey],
+      );
+
+      for (final subscription in subscriptions) {
+        final cardId = subscription['creditCardId'] as String;
+        final cards = await txn.query(
+          'credit_cards',
+          where: 'id = ? AND userId = ?',
+          whereArgs: [cardId, userId],
+          limit: 1,
+        );
+        if (cards.isEmpty) continue;
+
+        final card = Map<String, dynamic>.from(cards.first);
+        final amount = (subscription['amount'] as num).toDouble();
+        final currentDebt = (card['currentDebt'] as num).toDouble();
+        card['currentDebt'] = currentDebt + amount;
+        await txn.update(
+          'credit_cards',
+          {'currentDebt': card['currentDebt']},
+          where: 'id = ? AND userId = ?',
+          whereArgs: [cardId, userId],
+        );
+
+        final updatedSubscription = Map<String, dynamic>.from(subscription);
+        updatedSubscription['lastChargedMonth'] = monthKey;
+        await txn.update(
+          'subscriptions',
+          {'lastChargedMonth': monthKey},
+          where: 'id = ? AND userId = ?',
+          whereArgs: [subscription['id'], userId],
+        );
+        changedCards.add(card);
+        changedSubscriptions.add(updatedSubscription);
+      }
+    });
+
+    for (final card in changedCards) {
+      await _upsertRemote(
+        _creditCardsConfig,
+        card['id'].toString(),
+        card,
+        userId,
+      );
+    }
+    for (final subscription in changedSubscriptions) {
+      await _upsertRemote(
+        _subscriptionsConfig,
+        subscription['id'].toString(),
+        subscription,
+        userId,
+      );
+    }
+    return changedSubscriptions.length;
+  }
+
   Future<void> deleteSubscription(String id) async {
     await _deleteSynced(_subscriptionsConfig, id);
   }
@@ -543,6 +638,9 @@ class DatabaseService {
       'category',
       'billingDay',
       'color',
+      'creditCardId',
+      'creditCardName',
+      'lastChargedMonth',
     },
   );
   static const _debtsConfig = _SyncConfig(
