@@ -61,6 +61,7 @@ class _FinanceScreenState extends State<FinanceScreen>
   double get _totalDebt => _debts.fold(0, (sum, d) => sum + d.remainingAmount);
   double get _totalCreditCardDebt =>
       _creditCards.fold(0, (sum, c) => sum + c.currentDebt);
+  double get _totalLiabilityBalance => _totalDebt + _totalCreditCardDebt;
 
   Map<String, double> get _categoryTotals {
     final Map<String, double> totals = {};
@@ -183,7 +184,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '₺${NumberFormat('#,##0.00').format(_balance)}',
+                  '₺${NumberFormat('#,##0.00').format(_totalLiabilityBalance)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 36,
@@ -1956,7 +1957,7 @@ class _FinanceScreenState extends State<FinanceScreen>
     bool isExpense = true;
     bool isFixed = false;
     CreditCard? selectedCard;
-    final cats = [
+    final expenseCats = [
       'Market',
       'Faturalar',
       'Kira',
@@ -1968,6 +1969,7 @@ class _FinanceScreenState extends State<FinanceScreen>
       'Eğitim',
       'Diğer',
     ];
+    final incomeCats = ['Maaş', 'Ek Gelir'];
 
     showModalBottomSheet(
       context: context,
@@ -1976,221 +1978,240 @@ class _FinanceScreenState extends State<FinanceScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, set) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Yeni İşlem',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => set(() => isExpense = true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isExpense
-                                ? Colors.red
-                                : Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Gider',
-                              style: TextStyle(
-                                color: isExpense ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.bold,
+        builder: (context, set) {
+          final activeCats = isExpense ? expenseCats : incomeCats;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Yeni İşlem',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => set(() {
+                            isExpense = true;
+                            cat = 'Market';
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isExpense
+                                  ? Colors.red
+                                  : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Gider',
+                                style: TextStyle(
+                                  color: isExpense
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => set(() {
-                          isExpense = false;
-                          selectedCard = null;
-                        }),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: !isExpense
-                                ? Colors.green
-                                : Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Gelir',
-                              style: TextStyle(
-                                color: !isExpense ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.bold,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => set(() {
+                            isExpense = false;
+                            isFixed = false;
+                            selectedCard = null;
+                            cat = 'Maaş';
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: !isExpense
+                                  ? Colors.green
+                                  : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Gelir',
+                                style: TextStyle(
+                                  color: !isExpense
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: titleC,
-                  decoration: InputDecoration(
-                    labelText: 'Açıklama',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountC,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Tutar (₺)',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: cat,
-                  decoration: InputDecoration(
-                    labelText: 'Kategori',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  items: cats
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => set(() => cat = v ?? cat),
-                ),
-                if (isExpense && _creditCards.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<CreditCard?>(
-                    initialValue: selectedCard,
+                  TextField(
+                    controller: titleC,
                     decoration: InputDecoration(
-                      labelText: '💳 Kredi Kartı (opsiyonel)',
+                      labelText: 'Açıklama',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Kartla ödeme yok'),
-                      ),
-                      ..._creditCards.map(
-                        (c) => DropdownMenuItem(
-                          value: c,
-                          child: Text('${c.bankName} - ${c.cardName}'),
-                        ),
-                      ),
-                    ],
-                    onChanged: (v) => set(() => selectedCard = v),
                   ),
-                ],
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isFixed,
-                      onChanged: (v) => set(() => isFixed = v ?? false),
-                    ),
-                    const Text('Zorunlu gider'),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountC,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Tutar (₺)',
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () async {
-                      if (titleC.text.isEmpty || amountC.text.isEmpty) return;
-                      final amount = double.parse(
-                        amountC.text.replaceAll(',', '.'),
-                      );
-                      final t = FinanceTransaction(
-                        id: _uuid.v4(),
-                        title: titleC.text,
-                        amount: amount,
-                        category: cat,
-                        date: DateTime.now(),
-                        isExpense: isExpense,
-                        isFixed: isFixed,
-                        creditCardId: selectedCard?.id,
-                        creditCardName: selectedCard != null
-                            ? '${selectedCard!.bankName} ${selectedCard!.cardName}'
-                            : null,
-                      );
-                      await _db.insertTransaction(t);
-
-                      if (selectedCard != null && isExpense) {
-                        final updatedCard = selectedCard!.copyWith(
-                          currentDebt: selectedCard!.currentDebt + amount,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(isExpense),
+                    initialValue: cat,
+                    decoration: InputDecoration(
+                      labelText: 'Kategori',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: activeCats
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => set(() => cat = v ?? cat),
+                  ),
+                  if (isExpense && _creditCards.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<CreditCard?>(
+                      initialValue: selectedCard,
+                      decoration: InputDecoration(
+                        labelText: '💳 Kredi Kartı (opsiyonel)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('Kartla ödeme yok'),
+                        ),
+                        ..._creditCards.map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Text('${c.bankName} - ${c.cardName}'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => set(() => selectedCard = v),
+                    ),
+                  ],
+                  if (isExpense)
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: isFixed,
+                          onChanged: (v) => set(() => isFixed = v ?? false),
+                        ),
+                        const Text('Zorunlu gider'),
+                      ],
+                    ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C63FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (titleC.text.isEmpty || amountC.text.isEmpty) return;
+                        final amount = double.parse(
+                          amountC.text.replaceAll(',', '.'),
                         );
-                        await _db.updateCreditCard(updatedCard);
-                      }
-
-                      await _loadAll();
-
-                      if (isExpense) {
-                        final now = DateTime.now();
-                        final currentMonth = DateFormat('yyyy-MM').format(now);
-                        final budgetList = _budgets.where(
-                          (b) => b.category == cat && b.month == currentMonth,
+                        final t = FinanceTransaction(
+                          id: _uuid.v4(),
+                          title: titleC.text,
+                          amount: amount,
+                          category: cat,
+                          date: DateTime.now(),
+                          isExpense: isExpense,
+                          isFixed: isExpense && isFixed,
+                          creditCardId: selectedCard?.id,
+                          creditCardName: selectedCard != null
+                              ? '${selectedCard!.bankName} ${selectedCard!.cardName}'
+                              : null,
                         );
-                        if (budgetList.isNotEmpty) {
-                          final budget = budgetList.first;
-                          final spent = _categoryTotals[cat] ?? 0;
-                          if (spent > budget.limitAmount) {
-                            final asim = spent - budget.limitAmount;
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '⚠️ $cat bütçenizi ₺${asim.toStringAsFixed(2)} aştınız!',
+                        await _db.insertTransaction(t);
+
+                        if (selectedCard != null && isExpense) {
+                          final updatedCard = selectedCard!.copyWith(
+                            currentDebt: selectedCard!.currentDebt + amount,
+                          );
+                          await _db.updateCreditCard(updatedCard);
+                        }
+
+                        await _loadAll();
+
+                        if (isExpense) {
+                          final now = DateTime.now();
+                          final currentMonth = DateFormat(
+                            'yyyy-MM',
+                          ).format(now);
+                          final budgetList = _budgets.where(
+                            (b) => b.category == cat && b.month == currentMonth,
+                          );
+                          if (budgetList.isNotEmpty) {
+                            final budget = budgetList.first;
+                            final spent = _categoryTotals[cat] ?? 0;
+                            if (spent > budget.limitAmount) {
+                              final asim = spent - budget.limitAmount;
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '⚠️ $cat bütçenizi ₺${asim.toStringAsFixed(2)} aştınız!',
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                    duration: const Duration(seconds: 4),
                                   ),
-                                  backgroundColor: Colors.orange,
-                                  duration: const Duration(seconds: 4),
-                                ),
-                              );
+                                );
+                              }
                             }
                           }
                         }
-                      }
 
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text(
+                        'Kaydet',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
