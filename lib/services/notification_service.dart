@@ -11,6 +11,7 @@ class NotificationService {
   static const int _subscriptionOffset = 2000;
   static const int _habitOffset = 4000;
   static const int weightReminderId = 4001;
+  static const int bodyFatReminderId = 4002;
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -131,6 +132,24 @@ class NotificationService {
         hour,
         minute,
       );
+    }
+    return scheduled;
+  }
+
+  tz.TZDateTime _nextWeeklyTime(int weekday, int hour, int minute) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+    final daysToAdd = (weekday - scheduled.weekday) % 7;
+    scheduled = scheduled.add(Duration(days: daysToAdd));
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 7));
     }
     return scheduled;
   }
@@ -263,6 +282,23 @@ class NotificationService {
       channelName: 'Sağlık Hatırlatmaları',
       channelDesc: 'Günlük sağlık takibi hatırlatmaları',
       matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  Future<void> scheduleBodyFatReminder({
+    required int weekday,
+    required int hour,
+    required int minute,
+  }) async {
+    await _schedule(
+      id: bodyFatReminderId,
+      title: 'Yağ Oranı Ölçüm Zamanı',
+      body: 'Haftalık ölçülerini girip yağ oranı raporunu güncelle.',
+      scheduledTime: _nextWeeklyTime(weekday, hour, minute),
+      channelId: 'body_fat_channel',
+      channelName: 'Yağ Oranı Hatırlatmaları',
+      channelDesc: 'Haftalık yağ oranı ölçüm hatırlatmaları',
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
   }
 
