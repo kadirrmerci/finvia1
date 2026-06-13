@@ -511,14 +511,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _syncCloudData() async {
-    final succeeded = await DatabaseService().verifyCloudAccess();
+    var succeeded = false;
+    try {
+      final database = DatabaseService();
+      succeeded = await database.verifyCloudAccess();
+      if (succeeded) {
+        final settings = await database.getAppSettings();
+        if (!mounted) return;
+        FinviaApp.of(
+          context,
+        )?.refreshUserData(isDarkMode: settings['darkMode'] as bool? ?? false);
+      }
+    } catch (error, stackTrace) {
+      succeeded = false;
+      debugPrint('Finvia cloud data refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           succeeded
-              ? 'Firestore bağlantısı doğrulandı.'
+              ? 'Bulut verileri yenilendi.'
               : 'Bulut bağlantısı kurulamadı. Lütfen tekrar deneyin.',
         ),
         backgroundColor: succeeded ? Colors.green : Colors.orange,
@@ -635,7 +650,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _subscriptionReminder = true;
         _selectedColor = '6C63FF';
       });
-      FinviaApp.of(context)?.updateTheme(false);
       FinviaApp.of(context)?.resetUserData();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -35,11 +35,18 @@ class _HealthScreenState extends State<HealthScreen>
     final records = await _db.getHealthRecords();
     final habits = await _db.getHabits();
     final goal = await _db.getHealthGoal();
+    if (!mounted) return;
     setState(() {
       _records = records;
       _habits = habits;
       _targetWeight = (goal?['targetWeight'] as num?)?.toDouble();
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override

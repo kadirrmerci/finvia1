@@ -45,9 +45,18 @@ class FinviaAppState extends State<FinviaApp> {
     setState(() => _themeMode = nextMode);
   }
 
-  void resetUserData() {
+  void refreshUserData({bool? isDarkMode}) {
     if (!mounted) return;
-    setState(() => _dataVersion++);
+    setState(() {
+      if (isDarkMode != null) {
+        _themeMode = isDarkMode ? ThemeMode.dark : ThemeMode.light;
+      }
+      _dataVersion++;
+    });
+  }
+
+  void resetUserData() {
+    refreshUserData(isDarkMode: false);
   }
 
   @override
@@ -72,13 +81,15 @@ class FinviaAppState extends State<FinviaApp> {
         useMaterial3: true,
       ),
       themeMode: _themeMode,
-      home: const _StartupSplashGate(),
+      home: _StartupSplashGate(dataVersion: _dataVersion),
     );
   }
 }
 
 class _StartupSplashGate extends StatefulWidget {
-  const _StartupSplashGate();
+  const _StartupSplashGate({required this.dataVersion});
+
+  final int dataVersion;
 
   @override
   State<_StartupSplashGate> createState() => _StartupSplashGateState();
@@ -128,9 +139,7 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
           if (_canEnterApp(user)) {
             return _DataSyncGate(
               userId: user.uid,
-              child: MainNavigation(
-                key: ValueKey(FinviaApp.of(context)?._dataVersion ?? 0),
-              ),
+              child: MainNavigation(key: ValueKey(widget.dataVersion)),
             );
           }
 

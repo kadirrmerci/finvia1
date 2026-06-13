@@ -12,6 +12,17 @@
 
 ## Çözülen build-blocker'lar
 
+### Firestore silme ve manuel yenileme sonrası eski ekran verileri çözüldü
+
+App-level veri sürümü daha önce `FinviaApp` state'inin kendi build context'inden
+ancestor aramasıyla okunuyordu. Bu arama state'in kendisini bulmadığı için
+`MainNavigation` anahtarı sürekli aynı kalıyor ve `IndexedStack` içindeki eski
+listeler Firestore silindikten sonra ekranda yaşamaya devam ediyordu.
+
+Veri sürümü artık doğrudan başlangıç kapısına aktarılır. Tüm verileri silme ve
+başarılı manuel bulut yenileme işlemleri veri ekranlarını yeniden oluşturur;
+manuel yenileme ayrıca sunucudaki uygulama ayarlarını ve tema modunu yükler.
+
 ### macOS açılışta siyah ekranda kalma sorunu çözüldü
 
 `NotificationService.init()` içindeki `InitializationSettings` yalnızca
@@ -287,8 +298,9 @@ Ayarlar ekranında:
 
 “Yakında” mesajı gösteriyor.
 
-Bulut Senkronizasyon artık başlangıçta ve Ayarlar ekranındaki manuel aksiyonla
-Firestore üzerinden çalışıyor.
+Bulut Senkronizasyon başlangıçta Firestore erişimini doğrular. Ayarlar
+ekranındaki manuel aksiyon ise sunucudaki ayarları ve tüm kullanıcı veri
+ekranlarını yeniden yükler.
 
 Önerilen çözüm:
 
