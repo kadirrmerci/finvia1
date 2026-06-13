@@ -19,9 +19,6 @@ Repo adı `finvia1`, Flutter package adı `finvia`, ürün adı **Finvia**.
 - `firebase_auth`
 - `cloud_firestore`
 - `google_sign_in`
-- `sqflite`
-- `path`
-- `shared_preferences`
 - `flutter_local_notifications`
 - `timezone`
 - `fl_chart`
@@ -49,7 +46,9 @@ Başlangıç akışı:
 3. `NotificationService().init()`
 4. `runApp(const FinviaApp())`
 
-`FinviaApp`, `StatefulWidget` olarak tema modunu yönetir. Tema modu `SharedPreferences` içindeki `darkMode` bool değerinden yüklenir.
+`FinviaApp`, `StatefulWidget` olarak tema modunu yönetir. Tema modu giriş
+sonrasında `users/{uid}/settings/app` Firestore dokümanından yüklenir.
+Firestore disk persistence uygulama başlangıcında kapatılır.
 
 `MaterialApp`:
 
@@ -179,21 +178,13 @@ Telefon akışı:
 
 Auth ekranında Türkiye il/ilçe listesi kod içine gömülü büyük bir map olarak duruyor.
 
-## 7. Lokal veri katmanı
+## 7. Firestore veri katmanı
 
 Ana servis:
 
 - `lib/services/database_service.dart`
 
-DB dosyası:
-
-- `finvia.db`
-
-DB version:
-
-- `12`
-
-Tablolar:
+Kullanıcı alt koleksiyonları:
 
 - `transactions`
 - `subscriptions`
@@ -206,36 +197,24 @@ Tablolar:
 - `credit_cards`
 - `credit_card_statements`
 
-Kullanılan pattern:
+Ek koleksiyonlar:
 
-- Singleton `DatabaseService`
-- `openDatabase`
-- `onCreate` -> `_createTables`
-- `onUpgrade` -> `_createTables`
-- CRUD operasyonları doğrudan service içinde
+- `health_goals`
+- `settings`
 
-Önemli veri kuralı:
+## Kullanıcı bazlı veri izolasyonu
 
-- `CREATE TABLE IF NOT EXISTS` mevcut tabloda yeni kolon yaratmaz.
-- Yeni kolon/tip değişikliği gerekiyorsa explicit migration yazılmalı.
-
-## Kullanıcı bazlı veri izolasyonu ve Firestore sync
-
-- Tüm SQLite veri tabloları `userId` kolonu içerir.
-- `DatabaseService`, CRUD işlemlerini oturumdaki Firebase kullanıcısının uid
-  değeriyle filtreler.
-- DB v8 migration sonrasında sahipsiz eski lokal kayıtlar, giriş yapan ilk
-  kullanıcıya atanır.
+- `DatabaseService`, tüm CRUD işlemlerini oturumdaki Firebase kullanıcısının
+  uid değeri altında doğrudan Firestore'a uygular.
 - Firestore verileri `users/{uid}/{collection}/{id}` altında tutulur.
-- Desteklenen alt koleksiyonlar: `notes`, `transactions`, `subscriptions`,
-  `debts`, `budgets`, `holdings`, `health_records`, `habits`, `credit_cards`
-  ve `credit_card_statements`.
-- Uygulama girişinde local ve Firestore verileri bir kez eşitlenir.
-- Lokal yazımlar önce SQLite'a kaydedilir, ardından Firestore'a yansıtılır.
-- Silinen Firestore kayıtları `isDeleted: true` tombstone alanıyla korunur.
-- Ayarlar ekranı manuel senkronizasyon ve gerçek başarı/hata sonucu sunar.
-- Web sürümü veriyi doğrudan Firestore'dan okur/yazar; manuel senkronizasyon
-  SQLite açmadan sunucu erişimini doğrular.
+- Okumalar `Source.server` kullanır; yazımlar Firestore tamamlanmadan başarılı
+  sayılmaz.
+- Kayıt silmeleri hard delete olarak uygulanır.
+- Uygulama girişinde lokal merge/sync yapılmaz; yalnızca cloud erişimi ve
+  ayarlar yüklenir.
+- Ayarlar ekranındaki manuel aksiyon Firestore bağlantısını doğrular.
+- `Tüm Verileri Sil`, bilinen tüm kullanıcı alt koleksiyonlarını batch'ler
+  halinde siler, planlanmış bildirimleri iptal eder ve ekran state'ini resetler.
 - Android ana manifesti release dahil tüm build türlerinde `INTERNET` izni
   içerir.
 - macOS debug/profile ve release sandbox entitlement dosyaları outbound
@@ -628,7 +607,7 @@ Ayarlar:
 
 Kullanılan storage:
 
-- `shared_preferences`
+- `users/{uid}/settings/app`
 
 Entegrasyonlar:
 
@@ -639,8 +618,7 @@ Entegrasyonlar:
 Eksikler:
 
 - Accent color kaydediliyor ama ana tema seedColor’a bağlı değil.
-- “Tüm verileri sil” şu an gerçek DB silme yapmıyor; sadece snackbar gösteriyor.
-- Yedekleme/dışa aktarma/cloud sync/aile paylaşımı gibi özellikler “yakında” placeholder.
+- Yedekleme/dışa aktarma/aile paylaşımı özellikleri “yakında” placeholder.
 
 ## 14. Bildirim servisi
 

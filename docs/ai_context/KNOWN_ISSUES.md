@@ -101,6 +101,19 @@ Not:
 
 ## S1 — Veri kaybı / migration riskleri
 
+### Cloud-only geçişte eski SQLite verisi otomatik taşınmıyor
+
+Uygulama artık SQLite açmaz ve kullanıcı verisini yalnızca Firestore'dan okur.
+Production cihazlarında Firestore'a daha önce çıkmamış lokal kayıtlar varsa bu
+kayıtlar cloud-only sürümde görünmez.
+
+Önerilen çözüm:
+
+- Production kullanıcı verisi varsa cloud-only sürümden önce tek seferlik
+  migration release'i yayınla.
+- Migration başarısını kullanıcı/cihaz bazında doğrulamadan SQLite kodunu
+  içeren son sürümün desteğini sonlandırma.
+
 ### 6. DB v8 kullanıcı izolasyonu migration'ı eklendi
 
 Durum:
@@ -109,31 +122,8 @@ Durum:
 - CRUD sorguları oturumdaki Firebase uid değeriyle sınırlandırıldı.
 - Eski sahipsiz lokal kayıtlar ilk giriş yapan kullanıcıya atanır.
 
-Kalan risk:
-
-- Eski kayıtların geçmişteki gerçek sahibini belirlemek mümkün değildir.
-- Firestore sync MVP düzeyindedir: write-through, başlangıç ve manuel sync
-  vardır; realtime listener ve conflict resolution henüz yoktur.
-- Web sürümünde lokal SQLite bulunmaz; native cihazdaki kayıtların web'de
-  görünmesi için önce native uygulamanın başarılı biçimde Firestore'a
-  yüklemesi gerekir.
-- `firestore.rules` deploy edilmeden production güvenliği tamamlanmış sayılmaz.
-
-### 7. DB dosya adı değişikliği eski kullanıcı verisini ayırabilir
-
-Önceden DB dosyası `mylife.db` idi, şu anda `finvia.db`.
-
-Etkisi:
-
-- Eski kullanıcı cihazlarında veriler eski DB dosyasında kalabilir.
-- Uygulama yeni boş `finvia.db` açabilir.
-
-Önerilen çözüm:
-
-- Production kullanıcı varsa startup migration:
-  - eski `mylife.db` var mı kontrol et
-  - `finvia.db` yoksa taşı/kopyala
-- Production yoksa bu risk düşük.
+Tarihsel not: Bu migration cloud-only mimariye geçilmeden önceki SQLite
+sürümleri için geçerlidir. Güncel uygulama SQLite açmaz.
 
 ## S1 — Bildirim güvenilirliği
 
@@ -284,23 +274,8 @@ Etkisi:
 Önerilen çözüm:
 
 - Currency formatter helper oluştur.
-- `SharedPreferences` yerine app-level state/provider düşün.
+- Firestore settings verisini app-level state/provider üzerinden merkezi kullan.
 - Tüm finans/borsa ekranlarında formatter kullan.
-
-### 17. “Tüm verileri sil” gerçek veri silmiyor
-
-Ayarlar ekranında delete confirm sadece snackbar gösteriyor.
-
-Etkisi:
-
-- Kullanıcı verinin silindiğini sanır ama DB kalır.
-
-Önerilen çözüm:
-
-- Gerçek DB temizleme metodu ekle.
-- Kritik onay dialogu.
-- Geri alınamaz uyarısı.
-- Sonra tüm ekran state’lerini reload et.
 
 ### 18. Backup/export ve aile paylaşımı placeholder durumda
 

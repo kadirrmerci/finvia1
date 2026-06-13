@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/notes/notes_screen.dart';
 import 'screens/finance/finance_screen.dart';
 import 'screens/stocks/stocks_screen.dart';
@@ -19,6 +19,9 @@ import 'screens/auth/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: false,
+  );
   await NotificationService().init();
   runApp(const FinviaApp());
 }
@@ -33,21 +36,18 @@ class FinviaApp extends StatefulWidget {
 
 class FinviaAppState extends State<FinviaApp> {
   ThemeMode _themeMode = ThemeMode.light;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('darkMode') ?? false;
-    setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
-  }
+  int _dataVersion = 0;
 
   void updateTheme(bool isDark) {
-    setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
+    if (!mounted) return;
+    final nextMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    if (_themeMode == nextMode) return;
+    setState(() => _themeMode = nextMode);
+  }
+
+  void resetUserData() {
+    if (!mounted) return;
+    setState(() => _dataVersion++);
   }
 
   @override
@@ -128,7 +128,9 @@ class _StartupSplashGateState extends State<_StartupSplashGate> {
           if (_canEnterApp(user)) {
             return _DataSyncGate(
               userId: user.uid,
-              child: const MainNavigation(),
+              child: MainNavigation(
+                key: ValueKey(FinviaApp.of(context)?._dataVersion ?? 0),
+              ),
             );
           }
 
@@ -172,26 +174,39 @@ class _DataSyncGate extends StatefulWidget {
 }
 
 class _DataSyncGateState extends State<_DataSyncGate> {
-  late Future<bool> _syncFuture;
+  late Future<_CloudStartupResult> _startupFuture;
 
   @override
   void initState() {
     super.initState();
-    _syncFuture = DatabaseService().syncCurrentUserData();
+    _startupFuture = _loadCloudData();
   }
 
   @override
   void didUpdateWidget(covariant _DataSyncGate oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.userId != widget.userId) {
-      _syncFuture = DatabaseService().syncCurrentUserData();
+      _startupFuture = _loadCloudData();
     }
+  }
+
+  Future<_CloudStartupResult> _loadCloudData() async {
+    final database = DatabaseService();
+    final hasCloudAccess = await database.verifyCloudAccess();
+    if (!hasCloudAccess) {
+      return const _CloudStartupResult(hasCloudAccess: false);
+    }
+    final settings = await database.getAppSettings();
+    return _CloudStartupResult(
+      hasCloudAccess: true,
+      isDarkMode: settings['darkMode'] as bool? ?? false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _syncFuture,
+    return FutureBuilder<_CloudStartupResult>(
+      future: _startupFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -201,16 +216,32 @@ class _DataSyncGateState extends State<_DataSyncGate> {
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('Veriler senkronize ediliyor...'),
+                  Text('Bulut verileri yükleniyor...'),
                 ],
               ),
             ),
           );
         }
+        final result = snapshot.data;
+        if (result != null && result.hasCloudAccess) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            FinviaApp.of(context)?.updateTheme(result.isDarkMode);
+          });
+        }
         return widget.child;
       },
     );
   }
+}
+
+class _CloudStartupResult {
+  const _CloudStartupResult({
+    required this.hasCloudAccess,
+    this.isDarkMode = false,
+  });
+
+  final bool hasCloudAccess;
+  final bool isDarkMode;
 }
 
 class MainNavigation extends StatefulWidget {

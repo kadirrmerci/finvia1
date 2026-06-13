@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import '../models/transaction.dart';
 import '../models/subscription.dart';
 import '../models/debt.dart';
@@ -18,26 +16,22 @@ class DatabaseService {
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  static const int _dbVersion = 12;
+  static const _userDataCollections = [
+    'notes',
+    'transactions',
+    'subscriptions',
+    'debts',
+    'budgets',
+    'holdings',
+    'health_records',
+    'health_goals',
+    'habits',
+    'credit_cards',
+    'credit_card_statements',
+    'settings',
+  ];
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  Database? _db;
-  String? _lastLegacyOwnerClaimUid;
-
-  Future<Database> get database async {
-    _db ??= await _initDB();
-    return _db!;
-  }
-
-  Future<Database> _initDB() async {
-    final path = join(await getDatabasesPath(), 'finvia.db');
-    return openDatabase(
-      path,
-      version: _dbVersion,
-      onCreate: (db, version) => _createTables(db),
-      onUpgrade: _onUpgrade,
-    );
-  }
 
   String get _currentUserId {
     final user = FirebaseAuth.instance.currentUser;
@@ -51,664 +45,262 @@ class DatabaseService {
     return _firestore.collection('users').doc(userId);
   }
 
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    await _createTables(db);
-    if (oldVersion < 8) {
-      await _migrateToV8UserScopedData(db);
-    }
-    if (oldVersion < 9) {
-      await _migrateToV9HealthTracking(db);
-    }
-    if (oldVersion < 10) {
-      await _migrateToV10BodyMeasurements(db);
-    }
-    if (oldVersion < 11) {
-      await _migrateToV11ArmAndFfmi(db);
-    }
-    if (oldVersion < 12) {
-      await _migrateToV12SubscriptionCreditCards(db);
-    }
+  CollectionReference<Map<String, dynamic>> _userCollection(String collection) {
+    return _userDoc(_currentUserId).collection(collection);
   }
 
-  Future<void> _createTables(Database db) async {
-    await db.execute('''CREATE TABLE IF NOT EXISTS transactions(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, amount REAL,
-      category TEXT, date TEXT, isExpense INTEGER, isFixed INTEGER,
-      creditCardId TEXT, creditCardName TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS subscriptions(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, amount REAL,
-      category TEXT, billingDay INTEGER, color TEXT, creditCardId TEXT,
-      creditCardName TEXT, lastChargedMonth TEXT)''');
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS debts(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, totalAmount REAL,
-      paidAmount REAL, monthlyPayment REAL, startDate TEXT, interestRate REAL)''',
-    );
-    await db.execute('''CREATE TABLE IF NOT EXISTS budgets(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '',
-      category TEXT, limitAmount REAL, month TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS holdings(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', symbol TEXT, name TEXT,
-      buyPrice REAL, quantity REAL, buyDate TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS notes(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, content TEXT,
-      category TEXT, color TEXT, createdAt TEXT,
-      reminderTime TEXT, isPinned INTEGER, isArchived INTEGER)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS health_records(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '',
-      weight REAL, date TEXT, note TEXT, height REAL, waist REAL, neck REAL,
-      hip REAL, shoulder REAL, chest REAL, arm REAL, thigh REAL, calf REAL,
-      gender TEXT, bodyFatPercentage REAL, ffmi REAL)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS health_goals(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', targetWeight REAL,
-      bodyFatReminderDay INTEGER, bodyFatReminderHour INTEGER,
-      bodyFatReminderMinute INTEGER)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS habits(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', title TEXT, type TEXT,
-      startDate TEXT, completedDays TEXT, emoji TEXT, motivation TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS credit_cards(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', bankName TEXT, cardName TEXT,
-      creditLimit REAL, currentDebt REAL, statementDay INTEGER,
-      dueDay INTEGER, color TEXT)''');
-    await db.execute('''CREATE TABLE IF NOT EXISTS credit_card_statements(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', cardId TEXT, cardName TEXT,
-      amount REAL, paidAmount REAL, statementDate TEXT, dueDate TEXT)''');
-  }
-
-  Future<void> _migrateToV8UserScopedData(Database db) async {
-    for (final config in _syncConfigs) {
-      final columns = await db.rawQuery('PRAGMA table_info(${config.table})');
-      if (!columns.any((row) => row['name'] == 'userId')) {
-        await db.execute(
-          "ALTER TABLE ${config.table} ADD COLUMN userId TEXT DEFAULT ''",
-        );
-      }
-    }
-
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) {
-      await _claimLegacyRowsForUser(db, userId);
-    }
-  }
-
-  Future<void> _addColumnIfMissing(
-    Database db,
-    String table,
-    String column,
-    String type,
-  ) async {
-    final columns = await db.rawQuery('PRAGMA table_info($table)');
-    if (!columns.any((row) => row['name'] == column)) {
-      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
-    }
-  }
-
-  Future<void> _migrateToV12SubscriptionCreditCards(Database db) async {
-    await _addColumnIfMissing(db, 'subscriptions', 'creditCardId', 'TEXT');
-    await _addColumnIfMissing(db, 'subscriptions', 'creditCardName', 'TEXT');
-    await _addColumnIfMissing(db, 'subscriptions', 'lastChargedMonth', 'TEXT');
-  }
-
-  Future<void> _migrateToV9HealthTracking(Database db) async {
-    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
-    final names = columns.map((row) => row['name']).toSet();
-    for (final entry in {
-      'height': 'REAL',
-      'waist': 'REAL',
-      'neck': 'REAL',
-      'hip': 'REAL',
-      'gender': 'TEXT',
-      'bodyFatPercentage': 'REAL',
-    }.entries) {
-      if (!names.contains(entry.key)) {
-        await db.execute(
-          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
-        );
-      }
-    }
-    await db.execute('''CREATE TABLE IF NOT EXISTS health_goals(
-      id TEXT PRIMARY KEY, userId TEXT DEFAULT '', targetWeight REAL,
-      bodyFatReminderDay INTEGER, bodyFatReminderHour INTEGER,
-      bodyFatReminderMinute INTEGER)''');
-  }
-
-  Future<void> _migrateToV10BodyMeasurements(Database db) async {
-    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
-    final names = columns.map((row) => row['name']).toSet();
-    for (final entry in {
-      'shoulder': 'REAL',
-      'chest': 'REAL',
-      'thigh': 'REAL',
-      'calf': 'REAL',
-    }.entries) {
-      if (!names.contains(entry.key)) {
-        await db.execute(
-          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
-        );
-      }
-    }
-  }
-
-  Future<void> _migrateToV11ArmAndFfmi(Database db) async {
-    await _ensureHealthRecordMeasurementColumns(db);
-  }
-
-  Future<void> _ensureHealthRecordMeasurementColumns(Database db) async {
-    final columns = await db.rawQuery('PRAGMA table_info(health_records)');
-    final names = columns.map((row) => row['name']).toSet();
-    for (final entry in {
-      'height': 'REAL',
-      'waist': 'REAL',
-      'neck': 'REAL',
-      'hip': 'REAL',
-      'shoulder': 'REAL',
-      'chest': 'REAL',
-      'arm': 'REAL',
-      'thigh': 'REAL',
-      'calf': 'REAL',
-      'gender': 'TEXT',
-      'bodyFatPercentage': 'REAL',
-      'ffmi': 'REAL',
-    }.entries) {
-      if (!names.contains(entry.key)) {
-        await db.execute(
-          'ALTER TABLE health_records ADD COLUMN ${entry.key} ${entry.value}',
-        );
-      }
-    }
-  }
-
-  Future<Database> _databaseForCurrentUser() async {
-    final userId = _currentUserId;
-    final db = await database;
-    if (_lastLegacyOwnerClaimUid != userId) {
-      await _claimLegacyRowsForUser(db, userId);
-      _lastLegacyOwnerClaimUid = userId;
-    }
-    return db;
-  }
-
-  Future<void> _claimLegacyRowsForUser(Database db, String userId) async {
-    for (final config in _syncConfigs) {
-      await db.update(
-        config.table,
-        {'userId': userId},
-        where: 'userId IS NULL OR userId = ?',
-        whereArgs: [''],
-      );
-    }
-  }
-
-  Future<void> _insertSynced(
-    _SyncConfig config,
-    Map<String, dynamic> values,
-  ) async {
-    final userId = _currentUserId;
-    if (kIsWeb) {
-      final remoteValues = {...values, 'userId': userId};
-      await _upsertRemote(
-        config,
-        values['id'].toString(),
-        remoteValues,
-        userId,
-      );
-      return;
-    }
-    final db = await _databaseForCurrentUser();
-    final localValues = {...values, 'userId': userId};
-    await db.insert(
-      config.table,
-      localValues,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    await _upsertRemote(config, values['id'].toString(), localValues, userId);
-  }
-
-  Future<void> _updateSynced(
-    _SyncConfig config,
+  Future<void> _setDoc(
+    String collection,
     String id,
     Map<String, dynamic> values,
   ) async {
     final userId = _currentUserId;
-    if (kIsWeb) {
-      final remoteValues = {...values, 'userId': userId};
-      await _upsertRemote(config, id, remoteValues, userId);
-      return;
-    }
-    final db = await _databaseForCurrentUser();
-    final localValues = {...values, 'userId': userId};
-    await db.update(
-      config.table,
-      localValues,
-      where: 'id = ? AND userId = ?',
-      whereArgs: [id, userId],
-    );
-    await _upsertRemote(config, id, localValues, userId);
+    await _userDoc(userId).collection(collection).doc(id).set({
+      ...values,
+      'userId': userId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
-  Future<void> _deleteSynced(_SyncConfig config, String id) async {
-    final userId = _currentUserId;
-    if (kIsWeb) {
-      await _markRemoteDeleted(config, id, userId);
-      return;
-    }
-    final db = await _databaseForCurrentUser();
-    await db.delete(
-      config.table,
-      where: 'id = ? AND userId = ?',
-      whereArgs: [id, userId],
-    );
-    await _markRemoteDeleted(config, id, userId);
+  Future<void> _deleteDoc(String collection, String id) {
+    return _userCollection(collection).doc(id).delete();
   }
 
-  Future<List<Map<String, dynamic>>> _queryForCurrentUser(
-    String table, {
-    String? where,
-    List<Object?>? whereArgs,
-    String? orderBy,
-  }) async {
-    if (kIsWeb) {
-      return _queryRemoteForCurrentUser(
-        table,
-        where: where,
-        whereArgs: whereArgs,
-        orderBy: orderBy,
-      );
-    }
-    final userId = _currentUserId;
-    final db = await _databaseForCurrentUser();
-    final clauses = ['userId = ?'];
-    final args = <Object?>[userId];
-    if (where != null && where.isNotEmpty) {
-      clauses.add('($where)');
-      args.addAll(whereArgs ?? const []);
-    }
-    return db.query(
-      table,
-      where: clauses.join(' AND '),
-      whereArgs: args,
-      orderBy: orderBy,
-    );
+  Future<List<Map<String, dynamic>>> _getCollection(String collection) async {
+    final snapshot = await _userCollection(
+      collection,
+    ).get(const GetOptions(source: Source.server));
+    return snapshot.docs
+        .map((doc) => _normalizeDocument(doc.id, doc.data()))
+        .toList();
   }
 
-  Future<void> _upsertRemote(
-    _SyncConfig config,
+  Map<String, dynamic> _normalizeDocument(
     String id,
-    Map<String, dynamic> values,
-    String userId,
-  ) async {
-    try {
-      await _userDoc(userId).collection(config.collection).doc(id).set({
-        ...values,
-        'userId': userId,
-        'isDeleted': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {
-      // SQLite remains available while Firestore is offline.
-    }
+    Map<String, dynamic> data,
+  ) {
+    return {
+      ...data.map((key, value) => MapEntry(key, _normalizeValue(value))),
+      'id': data['id'] ?? id,
+    };
   }
 
-  Future<void> _markRemoteDeleted(
-    _SyncConfig config,
-    String id,
-    String userId,
-  ) async {
-    try {
-      await _userDoc(userId).collection(config.collection).doc(id).set({
-        'id': id,
-        'userId': userId,
-        'isDeleted': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {
-      // The local deletion remains authoritative on this device.
+  dynamic _normalizeValue(dynamic value) {
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    if (value is List) {
+      return value.map(_normalizeValue).join(',');
     }
+    return value;
   }
 
-  Future<bool> syncCurrentUserData() async {
+  Future<bool> verifyCloudAccess() async {
     try {
-      final userId = _currentUserId;
-      if (kIsWeb) {
-        // Web uses Firestore directly, so there is no SQLite database to merge.
-        await _userDoc(userId)
-            .get(const GetOptions(source: Source.server))
-            .timeout(const Duration(seconds: 15));
-        return true;
-      }
-
-      final db = await _databaseForCurrentUser();
-      await (() async {
-        // Preserve device data first. Pulling tombstones or timing out before
-        // the upload must never prevent existing local records reaching cloud.
-        await _pushLocalRows(db, userId);
-        await _pullRemoteRows(db, userId);
-      })().timeout(const Duration(seconds: 60));
+      await _userDoc(_currentUserId)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 15));
       return true;
     } catch (error, stackTrace) {
-      debugPrint('Finvia data sync failed: $error');
+      debugPrint('Finvia cloud access check failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       return false;
     }
   }
 
-  Future<void> _pullRemoteRows(Database db, String userId) async {
-    for (final config in _syncConfigs) {
-      final snapshot = await _userDoc(
-        userId,
-      ).collection(config.collection).get();
+  @Deprecated('Use verifyCloudAccess; local/cloud synchronization was removed.')
+  Future<bool> syncCurrentUserData() => verifyCloudAccess();
+
+  Future<Map<String, dynamic>> getAppSettings() async {
+    final doc = await _userCollection(
+      'settings',
+    ).doc('app').get(const GetOptions(source: Source.server));
+    return doc.data() ?? const {};
+  }
+
+  Future<void> saveAppSettings(Map<String, dynamic> values) {
+    return _setDoc('settings', 'app', values);
+  }
+
+  Future<void> deleteAllCurrentUserData() async {
+    final userId = _currentUserId;
+    final userRef = _userDoc(userId);
+    for (final collection in _userDataCollections) {
+      await _deleteCollectionInBatches(userRef.collection(collection));
+    }
+    await userRef.set({
+      'lastDataResetAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _deleteCollectionInBatches(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    const batchSize = 450;
+    while (true) {
+      final snapshot = await collection
+          .limit(batchSize)
+          .get(const GetOptions(source: Source.server));
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
-        final data = doc.data();
-        if (data['isDeleted'] == true) {
-          await db.delete(
-            config.table,
-            where: 'id = ? AND userId = ?',
-            whereArgs: [doc.id, userId],
-          );
-          continue;
-        }
-
-        final values = <String, dynamic>{};
-        for (final column in config.columns) {
-          if (column == 'id') {
-            values['id'] = data['id'] ?? doc.id;
-          } else if (column == 'userId') {
-            values['userId'] = userId;
-          } else if (data.containsKey(column)) {
-            values[column] = _normalizeRemoteValue(data[column]);
-          }
-        }
-        values['id'] ??= doc.id;
-        values['userId'] = userId;
-        await db.insert(
-          config.table,
-          values,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        batch.delete(doc.reference);
       }
+      await batch.commit();
     }
   }
 
-  dynamic _normalizeRemoteValue(dynamic value) {
-    if (value is Timestamp) return value.toDate().toIso8601String();
-    if (value is List) {
-      return value.map(_normalizeRemoteValue).join(',');
-    }
-    return value;
-  }
-
-  Future<void> _pushLocalRows(Database db, String userId) async {
-    for (final config in _syncConfigs) {
-      final rows = await db.query(
-        config.table,
-        where: 'userId = ?',
-        whereArgs: [userId],
-      );
-      for (final row in rows) {
-        final id = row['id']?.toString();
-        if (id == null || id.isEmpty) continue;
-        await _userDoc(userId).collection(config.collection).doc(id).set({
-          ...row,
-          'userId': userId,
-          'isDeleted': false,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-    }
-  }
-
-  // Notes
-  Future<void> insertNote(Note n) async {
-    await _insertSynced(_notesConfig, n.toMap());
-  }
+  Future<void> insertNote(Note note) => _setDoc('notes', note.id, note.toMap());
 
   Future<List<Note>> getNotes() async {
-    final maps = await _queryForCurrentUser(
-      'notes',
-      where: 'isArchived = ?',
-      whereArgs: [0],
-      orderBy: 'isPinned DESC, createdAt DESC',
-    );
-    return maps.map((m) => Note.fromMap(m)).toList();
+    final rows = await _getCollection('notes');
+    rows.removeWhere((row) => row['isArchived'] != 0);
+    rows.sort((a, b) {
+      final pinned = (b['isPinned'] as num? ?? 0).compareTo(
+        a['isPinned'] as num? ?? 0,
+      );
+      if (pinned != 0) return pinned;
+      return (b['createdAt']?.toString() ?? '').compareTo(
+        a['createdAt']?.toString() ?? '',
+      );
+    });
+    return rows.map(Note.fromMap).toList();
   }
 
-  Future<void> updateNote(Note n) async {
-    await _updateSynced(_notesConfig, n.id, n.toMap());
-  }
+  Future<void> updateNote(Note note) => _setDoc('notes', note.id, note.toMap());
 
-  Future<void> deleteNote(String id) async {
-    await _deleteSynced(_notesConfig, id);
-  }
+  Future<void> deleteNote(String id) => _deleteDoc('notes', id);
 
-  // Transactions
-  Future<void> insertTransaction(FinanceTransaction t) async {
-    await _insertSynced(_transactionsConfig, t.toMap());
-  }
+  Future<void> insertTransaction(FinanceTransaction transaction) =>
+      _setDoc('transactions', transaction.id, transaction.toMap());
 
   Future<List<FinanceTransaction>> getTransactions() async {
-    final maps = await _queryForCurrentUser(
-      'transactions',
-      orderBy: 'date DESC',
+    final rows = await _getCollection('transactions');
+    rows.sort(
+      (a, b) =>
+          (b['date']?.toString() ?? '').compareTo(a['date']?.toString() ?? ''),
     );
-    return maps.map((m) => FinanceTransaction.fromMap(m)).toList();
+    return rows.map(FinanceTransaction.fromMap).toList();
   }
 
-  Future<void> deleteTransaction(String id) async {
-    await _deleteSynced(_transactionsConfig, id);
-  }
+  Future<void> deleteTransaction(String id) => _deleteDoc('transactions', id);
 
-  // Subscriptions
-  Future<void> insertSubscription(Subscription s) async {
-    await _insertSynced(_subscriptionsConfig, s.toMap());
-  }
+  Future<void> insertSubscription(Subscription subscription) =>
+      _setDoc('subscriptions', subscription.id, subscription.toMap());
 
   Future<List<Subscription>> getSubscriptions() async {
-    final maps = await _queryForCurrentUser('subscriptions');
-    return maps.map((m) => Subscription.fromMap(m)).toList();
+    final rows = await _getCollection('subscriptions');
+    return rows.map(Subscription.fromMap).toList();
   }
 
   Future<int> applyDueSubscriptionCharges({DateTime? now}) async {
-    final userId = _currentUserId;
-    final db = await _databaseForCurrentUser();
     final chargeDate = now ?? DateTime.now();
     final monthKey =
         '${chargeDate.year}-${chargeDate.month.toString().padLeft(2, '0')}';
-    final changedSubscriptions = <Map<String, dynamic>>[];
-    final changedCards = <Map<String, dynamic>>[];
+    final subscriptions = await _userCollection('subscriptions')
+        .where('billingDay', isLessThanOrEqualTo: chargeDate.day)
+        .get(const GetOptions(source: Source.server));
+    var chargedCount = 0;
 
-    await db.transaction((txn) async {
-      final subscriptions = await txn.query(
-        'subscriptions',
-        where:
-            'userId = ? AND creditCardId IS NOT NULL '
-            'AND creditCardId != ? AND billingDay <= ? '
-            'AND (lastChargedMonth IS NULL OR lastChargedMonth != ?)',
-        whereArgs: [userId, '', chargeDate.day, monthKey],
-      );
-
-      for (final subscription in subscriptions) {
-        final cardId = subscription['creditCardId'] as String;
-        final cards = await txn.query(
-          'credit_cards',
-          where: 'id = ? AND userId = ?',
-          whereArgs: [cardId, userId],
-          limit: 1,
-        );
-        if (cards.isEmpty) continue;
-
-        final card = Map<String, dynamic>.from(cards.first);
-        final amount = (subscription['amount'] as num).toDouble();
-        final currentDebt = (card['currentDebt'] as num).toDouble();
-        card['currentDebt'] = currentDebt + amount;
-        await txn.update(
-          'credit_cards',
-          {'currentDebt': card['currentDebt']},
-          where: 'id = ? AND userId = ?',
-          whereArgs: [cardId, userId],
-        );
-
-        final updatedSubscription = Map<String, dynamic>.from(subscription);
-        updatedSubscription['lastChargedMonth'] = monthKey;
-        await txn.update(
-          'subscriptions',
-          {'lastChargedMonth': monthKey},
-          where: 'id = ? AND userId = ?',
-          whereArgs: [subscription['id'], userId],
-        );
-        changedCards.add(card);
-        changedSubscriptions.add(updatedSubscription);
+    for (final subscription in subscriptions.docs) {
+      final data = subscription.data();
+      final cardId = data['creditCardId'] as String?;
+      if (cardId == null ||
+          cardId.isEmpty ||
+          data['lastChargedMonth'] == monthKey) {
+        continue;
       }
-    });
 
-    for (final card in changedCards) {
-      await _upsertRemote(
-        _creditCardsConfig,
-        card['id'].toString(),
-        card,
-        userId,
-      );
+      final cardRef = _userCollection('credit_cards').doc(cardId);
+      final charged = await _firestore.runTransaction((transaction) async {
+        final latestSubscription = await transaction.get(
+          subscription.reference,
+        );
+        final latestData = latestSubscription.data();
+        if (!latestSubscription.exists ||
+            latestData == null ||
+            latestData['lastChargedMonth'] == monthKey) {
+          return false;
+        }
+
+        final card = await transaction.get(cardRef);
+        final cardData = card.data();
+        if (!card.exists || cardData == null) return false;
+
+        final amount = (latestData['amount'] as num).toDouble();
+        final currentDebt = (cardData['currentDebt'] as num).toDouble();
+        transaction.update(cardRef, {
+          'currentDebt': currentDebt + amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(subscription.reference, {
+          'lastChargedMonth': monthKey,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (charged) chargedCount++;
     }
-    for (final subscription in changedSubscriptions) {
-      await _upsertRemote(
-        _subscriptionsConfig,
-        subscription['id'].toString(),
-        subscription,
-        userId,
-      );
-    }
-    return changedSubscriptions.length;
+    return chargedCount;
   }
 
-  Future<void> deleteSubscription(String id) async {
-    await _deleteSynced(_subscriptionsConfig, id);
-  }
+  Future<void> deleteSubscription(String id) => _deleteDoc('subscriptions', id);
 
-  // Debts
-  Future<void> insertDebt(Debt d) async {
-    await _insertSynced(_debtsConfig, d.toMap());
-  }
+  Future<void> insertDebt(Debt debt) => _setDoc('debts', debt.id, debt.toMap());
 
   Future<List<Debt>> getDebts() async {
-    final maps = await _queryForCurrentUser('debts');
-    return maps.map((m) => Debt.fromMap(m)).toList();
+    final rows = await _getCollection('debts');
+    return rows.map(Debt.fromMap).toList();
   }
 
-  Future<void> updateDebt(Debt d) async {
-    await _updateSynced(_debtsConfig, d.id, d.toMap());
-  }
+  Future<void> updateDebt(Debt debt) => _setDoc('debts', debt.id, debt.toMap());
 
-  Future<void> deleteDebt(String id) async {
-    await _deleteSynced(_debtsConfig, id);
-  }
+  Future<void> deleteDebt(String id) => _deleteDoc('debts', id);
 
-  // Budgets
-  Future<void> insertBudget(Budget b) async {
-    await _insertSynced(_budgetsConfig, b.toMap());
-  }
+  Future<void> insertBudget(Budget budget) =>
+      _setDoc('budgets', budget.id, budget.toMap());
 
   Future<List<Budget>> getBudgets() async {
-    final maps = await _queryForCurrentUser('budgets');
-    return maps.map((m) => Budget.fromMap(m)).toList();
+    final rows = await _getCollection('budgets');
+    return rows.map(Budget.fromMap).toList();
   }
 
-  Future<void> updateBudget(Budget b) async {
-    await _updateSynced(_budgetsConfig, b.id, b.toMap());
-  }
+  Future<void> updateBudget(Budget budget) =>
+      _setDoc('budgets', budget.id, budget.toMap());
 
-  Future<void> deleteBudget(String id) async {
-    await _deleteSynced(_budgetsConfig, id);
-  }
+  Future<void> deleteBudget(String id) => _deleteDoc('budgets', id);
 
-  // Holdings
-  Future<void> insertHolding(StockHolding s) async {
-    await _insertSynced(_holdingsConfig, s.toMap());
-  }
+  Future<void> insertHolding(StockHolding holding) =>
+      _setDoc('holdings', holding.id, holding.toMap());
 
   Future<List<StockHolding>> getHoldings() async {
-    final maps = await _queryForCurrentUser('holdings');
-    return maps.map((m) => StockHolding.fromMap(m)).toList();
+    final rows = await _getCollection('holdings');
+    return rows.map(StockHolding.fromMap).toList();
   }
 
-  Future<void> deleteHolding(String id) async {
-    await _deleteSynced(_holdingsConfig, id);
-  }
+  Future<void> deleteHolding(String id) => _deleteDoc('holdings', id);
 
-  // Health Records
-  Future<void> insertHealthRecord(HealthRecord r) async {
-    if (!kIsWeb) {
-      await _ensureHealthRecordMeasurementColumns(await database);
-    }
-    await _insertSynced(_healthRecordsConfig, r.toMap());
-  }
-
-  Future<List<Map<String, dynamic>>> _queryRemoteForCurrentUser(
-    String table, {
-    String? where,
-    List<Object?>? whereArgs,
-    String? orderBy,
-  }) async {
-    final userId = _currentUserId;
-    final config = _syncConfigs.firstWhere((config) => config.table == table);
-    final snapshot = await _userDoc(userId).collection(config.collection).get();
-    var rows = snapshot.docs
-        .map((doc) {
-          final data = doc.data();
-          final values = <String, dynamic>{};
-          for (final column in config.columns) {
-            if (column == 'id') {
-              values['id'] = data['id'] ?? doc.id;
-            } else if (column == 'userId') {
-              values['userId'] = userId;
-            } else if (data.containsKey(column)) {
-              values[column] = _normalizeRemoteValue(data[column]);
-            }
-          }
-          return values;
-        })
-        .where((row) => row['isDeleted'] != true)
-        .toList();
-
-    if (where != null && whereArgs != null && where.contains('isArchived')) {
-      rows = rows.where((row) => row['isArchived'] == whereArgs.first).toList();
-    }
-
-    if (orderBy != null && orderBy.contains('date')) {
-      rows.sort((a, b) {
-        final aDate = DateTime.tryParse(a['date']?.toString() ?? '');
-        final bDate = DateTime.tryParse(b['date']?.toString() ?? '');
-        if (aDate == null || bDate == null) return 0;
-        return orderBy.contains('DESC')
-            ? bDate.compareTo(aDate)
-            : aDate.compareTo(bDate);
-      });
-    }
-
-    return rows;
-  }
+  Future<void> insertHealthRecord(HealthRecord record) =>
+      _setDoc('health_records', record.id, record.toMap());
 
   Future<List<HealthRecord>> getHealthRecords() async {
-    final maps = await _queryForCurrentUser(
-      'health_records',
-      orderBy: 'date DESC',
+    final rows = await _getCollection('health_records');
+    rows.sort(
+      (a, b) =>
+          (b['date']?.toString() ?? '').compareTo(a['date']?.toString() ?? ''),
     );
-    return maps.map((m) => HealthRecord.fromMap(m)).toList();
+    return rows.map(HealthRecord.fromMap).toList();
   }
 
-  Future<void> deleteHealthRecord(String id) async {
-    await _deleteSynced(_healthRecordsConfig, id);
-  }
+  Future<void> deleteHealthRecord(String id) =>
+      _deleteDoc('health_records', id);
 
   Future<Map<String, dynamic>?> getHealthGoal() async {
-    if (kIsWeb) {
-      final userId = _currentUserId;
-      final doc = await _userDoc(
-        userId,
-      ).collection('health_goals').doc('main').get();
-      return doc.data();
-    }
-    final maps = await _queryForCurrentUser('health_goals');
-    return maps.isEmpty ? null : maps.first;
+    final doc = await _userCollection(
+      'health_goals',
+    ).doc('main').get(const GetOptions(source: Source.server));
+    final data = doc.data();
+    return data == null ? null : _normalizeDocument(doc.id, data);
   }
 
   Future<void> saveHealthGoal({
@@ -716,287 +308,78 @@ class DatabaseService {
     int? bodyFatReminderDay,
     int? bodyFatReminderHour,
     int? bodyFatReminderMinute,
-  }) async {
-    final userId = _currentUserId;
-    if (kIsWeb) {
-      await _userDoc(userId).collection('health_goals').doc('main').set({
-        'id': 'main',
-        'userId': userId,
-        'targetWeight': targetWeight,
-        'bodyFatReminderDay': bodyFatReminderDay,
-        'bodyFatReminderHour': bodyFatReminderHour,
-        'bodyFatReminderMinute': bodyFatReminderMinute,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      return;
-    }
-    final db = await _databaseForCurrentUser();
-    await db.insert('health_goals', {
+  }) {
+    return _setDoc('health_goals', 'main', {
       'id': 'main',
-      'userId': userId,
       'targetWeight': targetWeight,
       'bodyFatReminderDay': bodyFatReminderDay,
       'bodyFatReminderHour': bodyFatReminderHour,
       'bodyFatReminderMinute': bodyFatReminderMinute,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
   }
 
-  // Habits
-  Future<void> insertHabit(Habit h) async {
-    await _insertSynced(_habitsConfig, h.toMap());
-  }
+  Future<void> insertHabit(Habit habit) =>
+      _setDoc('habits', habit.id, habit.toMap());
 
   Future<List<Habit>> getHabits() async {
-    final maps = await _queryForCurrentUser('habits');
-    return maps.map((m) => Habit.fromMap(m)).toList();
+    final rows = await _getCollection('habits');
+    return rows.map(Habit.fromMap).toList();
   }
 
-  Future<void> updateHabit(Habit h) async {
-    await _updateSynced(_habitsConfig, h.id, h.toMap());
-  }
+  Future<void> updateHabit(Habit habit) =>
+      _setDoc('habits', habit.id, habit.toMap());
 
-  Future<void> deleteHabit(String id) async {
-    await _deleteSynced(_habitsConfig, id);
-  }
+  Future<void> deleteHabit(String id) => _deleteDoc('habits', id);
 
-  // Credit Cards
-  Future<void> insertCreditCard(CreditCard c) async {
-    await _insertSynced(_creditCardsConfig, c.toMap());
-  }
+  Future<void> insertCreditCard(CreditCard card) =>
+      _setDoc('credit_cards', card.id, card.toMap());
 
   Future<List<CreditCard>> getCreditCards() async {
-    final maps = await _queryForCurrentUser('credit_cards');
-    return maps.map((m) => CreditCard.fromMap(m)).toList();
+    final rows = await _getCollection('credit_cards');
+    return rows.map(CreditCard.fromMap).toList();
   }
 
-  Future<void> updateCreditCard(CreditCard c) async {
-    await _updateSynced(_creditCardsConfig, c.id, c.toMap());
-  }
+  Future<void> updateCreditCard(CreditCard card) =>
+      _setDoc('credit_cards', card.id, card.toMap());
 
   Future<void> deleteCreditCard(String id) async {
-    final userId = _currentUserId;
-    final db = await _databaseForCurrentUser();
-    await db.delete(
-      'credit_cards',
-      where: 'id = ? AND userId = ?',
-      whereArgs: [id, userId],
-    );
-    await db.delete(
-      'credit_card_statements',
-      where: 'cardId = ? AND userId = ?',
-      whereArgs: [id, userId],
-    );
-    await _markRemoteDeleted(_creditCardsConfig, id, userId);
-
-    try {
-      final statements = await _userDoc(userId)
-          .collection(_creditCardStatementsConfig.collection)
+    await _deleteDoc('credit_cards', id);
+    while (true) {
+      final statements = await _userCollection('credit_card_statements')
           .where('cardId', isEqualTo: id)
-          .get();
+          .limit(450)
+          .get(const GetOptions(source: Source.server));
+      if (statements.docs.isEmpty) return;
+      final batch = _firestore.batch();
       for (final statement in statements.docs) {
-        await _markRemoteDeleted(
-          _creditCardStatementsConfig,
-          statement.id,
-          userId,
-        );
+        batch.delete(statement.reference);
       }
-    } catch (_) {
-      // Local card and statement deletion has already completed.
+      await batch.commit();
     }
   }
 
-  // Credit Card Statements
-  Future<void> insertStatement(CreditCardStatement s) async {
-    await _insertSynced(_creditCardStatementsConfig, s.toMap());
-  }
+  Future<void> insertStatement(CreditCardStatement statement) =>
+      _setDoc('credit_card_statements', statement.id, statement.toMap());
 
   Future<List<CreditCardStatement>> getStatements(String cardId) async {
-    final maps = await _queryForCurrentUser(
-      'credit_card_statements',
-      where: 'cardId = ?',
-      whereArgs: [cardId],
-      orderBy: 'statementDate DESC',
-    );
-    return maps.map((m) => CreditCardStatement.fromMap(m)).toList();
+    final snapshot = await _userCollection('credit_card_statements')
+        .where('cardId', isEqualTo: cardId)
+        .get(const GetOptions(source: Source.server));
+    final rows =
+        snapshot.docs
+            .map((doc) => _normalizeDocument(doc.id, doc.data()))
+            .toList()
+          ..sort(
+            (a, b) => (b['statementDate']?.toString() ?? '').compareTo(
+              a['statementDate']?.toString() ?? '',
+            ),
+          );
+    return rows.map(CreditCardStatement.fromMap).toList();
   }
 
-  Future<void> updateStatement(CreditCardStatement s) async {
-    await _updateSynced(_creditCardStatementsConfig, s.id, s.toMap());
-  }
+  Future<void> updateStatement(CreditCardStatement statement) =>
+      _setDoc('credit_card_statements', statement.id, statement.toMap());
 
-  Future<void> deleteStatement(String id) async {
-    await _deleteSynced(_creditCardStatementsConfig, id);
-  }
-
-  static const _transactionsConfig = _SyncConfig(
-    table: 'transactions',
-    collection: 'transactions',
-    columns: {
-      'id',
-      'userId',
-      'title',
-      'amount',
-      'category',
-      'date',
-      'isExpense',
-      'isFixed',
-      'creditCardId',
-      'creditCardName',
-    },
-  );
-  static const _subscriptionsConfig = _SyncConfig(
-    table: 'subscriptions',
-    collection: 'subscriptions',
-    columns: {
-      'id',
-      'userId',
-      'title',
-      'amount',
-      'category',
-      'billingDay',
-      'color',
-      'creditCardId',
-      'creditCardName',
-      'lastChargedMonth',
-    },
-  );
-  static const _debtsConfig = _SyncConfig(
-    table: 'debts',
-    collection: 'debts',
-    columns: {
-      'id',
-      'userId',
-      'title',
-      'totalAmount',
-      'paidAmount',
-      'monthlyPayment',
-      'startDate',
-      'interestRate',
-    },
-  );
-  static const _budgetsConfig = _SyncConfig(
-    table: 'budgets',
-    collection: 'budgets',
-    columns: {'id', 'userId', 'category', 'limitAmount', 'month'},
-  );
-  static const _holdingsConfig = _SyncConfig(
-    table: 'holdings',
-    collection: 'holdings',
-    columns: {
-      'id',
-      'userId',
-      'symbol',
-      'name',
-      'buyPrice',
-      'quantity',
-      'buyDate',
-    },
-  );
-  static const _notesConfig = _SyncConfig(
-    table: 'notes',
-    collection: 'notes',
-    columns: {
-      'id',
-      'userId',
-      'title',
-      'content',
-      'category',
-      'color',
-      'createdAt',
-      'reminderTime',
-      'isPinned',
-      'isArchived',
-    },
-  );
-  static const _healthRecordsConfig = _SyncConfig(
-    table: 'health_records',
-    collection: 'health_records',
-    columns: {
-      'id',
-      'userId',
-      'weight',
-      'date',
-      'note',
-      'height',
-      'waist',
-      'neck',
-      'hip',
-      'shoulder',
-      'chest',
-      'arm',
-      'thigh',
-      'calf',
-      'gender',
-      'bodyFatPercentage',
-      'ffmi',
-    },
-  );
-  static const _habitsConfig = _SyncConfig(
-    table: 'habits',
-    collection: 'habits',
-    columns: {
-      'id',
-      'userId',
-      'title',
-      'type',
-      'startDate',
-      'completedDays',
-      'emoji',
-      'motivation',
-    },
-  );
-  static const _creditCardsConfig = _SyncConfig(
-    table: 'credit_cards',
-    collection: 'credit_cards',
-    columns: {
-      'id',
-      'userId',
-      'bankName',
-      'cardName',
-      'creditLimit',
-      'currentDebt',
-      'statementDay',
-      'dueDay',
-      'color',
-    },
-  );
-  static const _creditCardStatementsConfig = _SyncConfig(
-    table: 'credit_card_statements',
-    collection: 'credit_card_statements',
-    columns: {
-      'id',
-      'userId',
-      'cardId',
-      'cardName',
-      'amount',
-      'paidAmount',
-      'statementDate',
-      'dueDate',
-    },
-  );
-
-  static const _syncConfigs = [
-    _transactionsConfig,
-    _subscriptionsConfig,
-    _debtsConfig,
-    _budgetsConfig,
-    _holdingsConfig,
-    _notesConfig,
-    _healthRecordsConfig,
-    _habitsConfig,
-    _creditCardsConfig,
-    _creditCardStatementsConfig,
-  ];
-}
-
-class _SyncConfig {
-  const _SyncConfig({
-    required this.table,
-    required this.collection,
-    required this.columns,
-  });
-
-  final String table;
-  final String collection;
-  final Set<String> columns;
+  Future<void> deleteStatement(String id) =>
+      _deleteDoc('credit_card_statements', id);
 }
