@@ -35,6 +35,7 @@ class _FinanceScreenState extends State<FinanceScreen>
   }
 
   Future<void> _loadAll() async {
+    await _db.applyDueSubscriptionCharges();
     final t = await _db.getTransactions();
     final s = await _db.getSubscriptions();
     final d = await _db.getDebts();
@@ -740,7 +741,8 @@ class _FinanceScreenState extends State<FinanceScreen>
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(
-                            'Her ayın ${s.billingDay}. günü • $daysLeft gün kaldı',
+                            'Her ayın ${s.billingDay}. günü • $daysLeft gün kaldı'
+                            '${s.creditCardName == null ? '' : ' • ${s.creditCardName}'}',
                           ),
                           trailing: Text(
                             '₺${NumberFormat('#,##0.00').format(s.amount)}',
@@ -909,18 +911,42 @@ class _FinanceScreenState extends State<FinanceScreen>
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green.shade50,
-                                        foregroundColor: Colors.green,
-                                        elevation: 0,
-                                      ),
-                                      onPressed: () => _showPayDebt(d),
-                                      icon: const Icon(Icons.payment, size: 16),
-                                      label: Text(
-                                        'Ödeme Yap (₺${NumberFormat('#,##0').format(d.monthlyPayment)})',
-                                      ),
+                                  Flexible(
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.green.shade50,
+                                            foregroundColor: Colors.green,
+                                            elevation: 0,
+                                          ),
+                                          onPressed: () => _showPayDebt(d),
+                                          icon: const Icon(
+                                            Icons.payment,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            'Ödeme Yap (₺${NumberFormat('#,##0').format(d.monthlyPayment)})',
+                                          ),
+                                        ),
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.blue.shade50,
+                                            foregroundColor: Colors.blue,
+                                            elevation: 0,
+                                          ),
+                                          onPressed: () => _showExtraPayment(d),
+                                          icon: const Icon(
+                                            Icons.add_card,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Ara Ödeme Yap'),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -990,6 +1016,85 @@ class _FinanceScreenState extends State<FinanceScreen>
         ],
       ),
     );
+  }
+
+  void _showExtraPayment(Debt d) {
+    final amountController = TextEditingController();
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('${d.title} Ara Ödemesi'),
+          content: TextField(
+            controller: amountController,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Ara ödeme tutarı (₺)',
+              hintText:
+                  'Kalan: ₺${NumberFormat('#,##0.00').format(d.remainingAmount)}',
+              errorText: errorText,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final amount = double.tryParse(
+                  amountController.text.trim().replaceAll(',', '.'),
+                );
+                if (amount == null || amount <= 0) {
+                  setDialogState(
+                    () => errorText = 'Sıfırdan büyük geçerli bir tutar girin.',
+                  );
+                  return;
+                }
+                if (amount > d.remainingAmount) {
+                  setDialogState(
+                    () => errorText = 'Ara ödeme kalan borcu aşamaz.',
+                  );
+                  return;
+                }
+
+                final updated = Debt(
+                  id: d.id,
+                  title: d.title,
+                  totalAmount: d.totalAmount,
+                  paidAmount: d.paidAmount + amount,
+                  monthlyPayment: d.monthlyPayment,
+                  startDate: d.startDate,
+                  interestRate: d.interestRate,
+                );
+                await _db.updateDebt(updated);
+                final transaction = FinanceTransaction(
+                  id: _uuid.v4(),
+                  title: '${d.title} Ara Ödemesi',
+                  amount: amount,
+                  category: 'Borç Ödemesi',
+                  date: DateTime.now(),
+                  isExpense: false,
+                  isFixed: false,
+                );
+                await _db.insertTransaction(transaction);
+                await _loadAll();
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(amountController.dispose);
   }
 
   // ── BÜTÇE ──────────────────────────────────────────
@@ -2258,6 +2363,7 @@ class _FinanceScreenState extends State<FinanceScreen>
     final titleC = TextEditingController();
     final amountC = TextEditingController();
     int billingDay = 1;
+    String? selectedCardId;
 
     showModalBottomSheet(
       context: context,
@@ -2302,6 +2408,36 @@ class _FinanceScreenState extends State<FinanceScreen>
                 ),
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selectedCardId,
+                decoration: InputDecoration(
+                  labelText: 'Bağlı kredi kartı',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                hint: const Text('Kredi kartı seçin'),
+                items: _creditCards
+                    .map(
+                      (card) => DropdownMenuItem(
+                        value: card.id,
+                        child: Text('${card.cardName} • ${card.bankName}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => set(() => selectedCardId = value),
+              ),
+              if (_creditCards.isEmpty) ...[
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Abonelik eklemek için önce bir kredi kartı ekleyin.',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
               Row(
                 children: [
                   const Text('Fatura günü: '),
@@ -2330,27 +2466,56 @@ class _FinanceScreenState extends State<FinanceScreen>
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () async {
-                    if (titleC.text.isEmpty || amountC.text.isEmpty) return;
-                    final s = Subscription(
-                      id: _uuid.v4(),
-                      title: titleC.text,
-                      amount: double.parse(amountC.text),
-                      category: 'Abonelik',
-                      billingDay: billingDay,
-                      color: '#6C63FF',
-                    );
-                    await _db.insertSubscription(s);
-                    await NotificationService().scheduleSubscriptionReminder(
-                      id: s.id.hashCode,
-                      subscriptionName: s.title,
-                      dayOfMonth: billingDay,
-                      hour: 9,
-                      minute: 0,
-                    );
-                    await _loadAll();
-                    if (context.mounted) Navigator.pop(context);
-                  },
+                  onPressed: _creditCards.isEmpty
+                      ? null
+                      : () async {
+                          final amount = double.tryParse(
+                            amountC.text.replaceAll(',', '.'),
+                          );
+                          if (titleC.text.trim().isEmpty ||
+                              amount == null ||
+                              amount <= 0 ||
+                              selectedCardId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Abonelik adı, geçerli tutar ve kredi kartı seçimi zorunludur.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          final selectedCard = _creditCards.firstWhere(
+                            (card) => card.id == selectedCardId,
+                          );
+                          final now = DateTime.now();
+                          final currentMonth =
+                              '${now.year}-${now.month.toString().padLeft(2, '0')}';
+                          final s = Subscription(
+                            id: _uuid.v4(),
+                            title: titleC.text.trim(),
+                            amount: amount,
+                            category: 'Abonelik',
+                            billingDay: billingDay,
+                            color: '#6C63FF',
+                            creditCardId: selectedCard.id,
+                            creditCardName: selectedCard.cardName,
+                            lastChargedMonth: billingDay < now.day
+                                ? currentMonth
+                                : null,
+                          );
+                          await _db.insertSubscription(s);
+                          await NotificationService()
+                              .scheduleSubscriptionReminder(
+                                id: s.id.hashCode,
+                                subscriptionName: s.title,
+                                dayOfMonth: billingDay,
+                                hour: 9,
+                                minute: 0,
+                              );
+                          await _loadAll();
+                          if (context.mounted) Navigator.pop(context);
+                        },
                   child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
                 ),
               ),
