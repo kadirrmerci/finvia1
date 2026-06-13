@@ -868,17 +868,29 @@ class _FinanceScreenState extends State<FinanceScreen>
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade50,
-                                  foregroundColor: Colors.green,
-                                  elevation: 0,
-                                ),
-                                onPressed: () => _showPayDebt(d),
-                                icon: const Icon(Icons.payment, size: 16),
-                                label: Text(
-                                  'Ödeme Yap (₺${NumberFormat('#,##0').format(d.monthlyPayment)})',
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green.shade50,
+                                        foregroundColor: Colors.green,
+                                        elevation: 0,
+                                      ),
+                                      onPressed: () => _showPayDebt(d),
+                                      icon: const Icon(Icons.payment, size: 16),
+                                      label: Text(
+                                        'Ödeme Yap (₺${NumberFormat('#,##0').format(d.monthlyPayment)})',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _showEditDebt(d),
+                                    icon: const Icon(Icons.edit, size: 16),
+                                    label: const Text('Düzenle'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -2290,12 +2302,22 @@ class _FinanceScreenState extends State<FinanceScreen>
     );
   }
 
-  void _showAddDebt() {
-    final titleC = TextEditingController();
-    final totalC = TextEditingController();
-    final paidC = TextEditingController();
-    final monthlyC = TextEditingController();
-    final rateC = TextEditingController();
+  void _showAddDebt() => _showDebtForm();
+
+  void _showEditDebt(Debt debt) => _showDebtForm(debt: debt);
+
+  void _showDebtForm({Debt? debt}) {
+    final isEditing = debt != null;
+    final titleC = TextEditingController(text: debt?.title ?? '');
+    final totalC = TextEditingController(
+      text: debt?.totalAmount.toStringAsFixed(2) ?? '',
+    );
+    final paidC = TextEditingController(
+      text: debt?.paidAmount.toStringAsFixed(2) ?? '',
+    );
+    final monthlyC = TextEditingController(
+      text: debt?.monthlyPayment.toStringAsFixed(2) ?? '',
+    );
 
     showModalBottomSheet(
       context: context,
@@ -2314,15 +2336,18 @@ class _FinanceScreenState extends State<FinanceScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Yeni Borç',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                isEditing ? 'Borcu Düzenle' : 'Yeni Borç',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: titleC,
                 decoration: InputDecoration(
-                  labelText: 'Borç Adı (Kredi, Kart...)',
+                  labelText: 'Borç adı',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -2362,17 +2387,6 @@ class _FinanceScreenState extends State<FinanceScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: rateC,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Faiz Oranı % (opsiyonel)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -2385,27 +2399,55 @@ class _FinanceScreenState extends State<FinanceScreen>
                     ),
                   ),
                   onPressed: () async {
-                    if (titleC.text.isEmpty || totalC.text.isEmpty) return;
-                    final d = Debt(
-                      id: _uuid.v4(),
-                      title: titleC.text,
-                      totalAmount: double.parse(
-                        totalC.text.replaceAll(',', '.'),
-                      ),
-                      paidAmount:
-                          double.tryParse(paidC.text.replaceAll(',', '.')) ?? 0,
-                      monthlyPayment:
-                          double.tryParse(monthlyC.text.replaceAll(',', '.')) ??
-                          0,
-                      startDate: DateTime.now(),
-                      interestRate:
-                          double.tryParse(rateC.text.replaceAll(',', '.')) ?? 0,
+                    final title = titleC.text.trim();
+                    final total = double.tryParse(
+                      totalC.text.replaceAll(',', '.'),
                     );
-                    await _db.insertDebt(d);
+                    final paid =
+                        double.tryParse(paidC.text.replaceAll(',', '.')) ?? 0;
+                    final monthly =
+                        double.tryParse(monthlyC.text.replaceAll(',', '.')) ??
+                        0;
+
+                    String? errorMessage;
+                    if (title.isEmpty || total == null || total <= 0) {
+                      errorMessage =
+                          'Borç adı ve sıfırdan büyük toplam borç girin.';
+                    } else if (paid < 0 || monthly < 0) {
+                      errorMessage = 'Tutarlar negatif olamaz.';
+                    } else if (paid > total) {
+                      errorMessage =
+                          'Ödenen miktar toplam borçtan büyük olamaz.';
+                    }
+
+                    if (errorMessage != null) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(errorMessage)));
+                      return;
+                    }
+
+                    final updatedDebt = Debt(
+                      id: debt?.id ?? _uuid.v4(),
+                      title: title,
+                      totalAmount: total!,
+                      paidAmount: paid,
+                      monthlyPayment: monthly,
+                      startDate: debt?.startDate ?? DateTime.now(),
+                      interestRate: debt?.interestRate ?? 0,
+                    );
+                    if (isEditing) {
+                      await _db.updateDebt(updatedDebt);
+                    } else {
+                      await _db.insertDebt(updatedDebt);
+                    }
                     await _loadAll();
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
+                  child: Text(
+                    isEditing ? 'Güncelle' : 'Kaydet',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
               ),
             ],

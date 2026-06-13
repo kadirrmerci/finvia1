@@ -1216,24 +1216,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) _showVerificationDialog();
   }
 
-  Future<bool> _repairPartialEmailRegistration() async {
-    try {
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      final user = credential.user;
-      if (user == null) return false;
-      await _completeEmailRegistration(user);
-      return true;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        return false;
-      }
-      rethrow;
-    }
-  }
-
   Future<void> _submitEmail() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showError('Lütfen tüm alanları doldurun');
@@ -1280,27 +1262,11 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      if (!_isLogin && e.code == 'email-already-in-use') {
-        try {
-          if (await _repairPartialEmailRegistration()) return;
-        } on FirebaseException catch (repairError) {
-          final source = repairError.plugin == 'cloud_firestore'
-              ? 'Firestore'
-              : 'Firebase Auth';
-          _showError(
-            'Hesap mevcut ancak profil kaydı sırasında $source hatası oluştu '
-            '(${repairError.code}): '
-            '${repairError.message ?? repairError.code}',
-          );
-          return;
-        }
-      }
-
       String message = 'Hata: ${e.code}';
       if (e.code == 'user-not-found') message = 'Kullanıcı bulunamadı';
       if (e.code == 'wrong-password') message = 'Hatalı şifre';
       if (e.code == 'email-already-in-use') {
-        message = 'Bu email zaten kullanımda';
+        message = 'Bu e-mail adresi ile aktif bir kullanıcı hesabı mevcut';
       }
       if (e.code == 'weak-password') {
         message = 'Şifre çok zayıf (min 6 karakter)';

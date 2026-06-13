@@ -3,6 +3,7 @@
 > AI çalışma talimatları — Finvia repo’su (`kadirrmerci/finvia1`) için.
 >
 > Bu dosya, yeni bir chat/session veya coding agent çalışması başladığında **her şeyden önce** okunmalıdır. Kod değişikliği yapmadan önce bu dosyayı, ardından `docs/ai_context/PROJECT_CONTEXT.md`, `docs/ai_context/KNOWN_ISSUES.md` ve `docs/ai_context/AI_CHANGELOG.md` dosyalarını oku.
+> Bu proje üzerinde çalışan her AI agent, herhangi bir işe başlamadan önce `docs/ai_context/` altındaki tüm dosyaları mutlaka okumalıdır.
 
 ## 1. Proje kimliği
 
