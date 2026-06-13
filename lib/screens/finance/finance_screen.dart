@@ -41,6 +41,7 @@ class _FinanceScreenState extends State<FinanceScreen>
     final d = await _db.getDebts();
     final b = await _db.getBudgets();
     final c = await _db.getCreditCards();
+    if (!mounted) return;
     setState(() {
       _transactions = t;
       _subscriptions = s;
@@ -48,6 +49,12 @@ class _FinanceScreenState extends State<FinanceScreen>
       _budgets = b;
       _creditCards = c;
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   double get _totalIncome => _transactions

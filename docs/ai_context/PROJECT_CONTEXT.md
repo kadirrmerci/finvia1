@@ -212,9 +212,12 @@ Ek koleksiyonlar:
 - Kayıt silmeleri hard delete olarak uygulanır.
 - Uygulama girişinde lokal merge/sync yapılmaz; yalnızca cloud erişimi ve
   ayarlar yüklenir.
-- Ayarlar ekranındaki manuel aksiyon Firestore bağlantısını doğrular.
+- Ayarlar ekranındaki manuel bulut aksiyonu Firestore bağlantısını ve ayarlar
+  dokümanını sunucudan doğrular; tema dahil tüm kullanıcı veri ekranlarını
+  yeniden oluşturarak koleksiyonları `Source.server` üzerinden tekrar yükler.
 - `Tüm Verileri Sil`, bilinen tüm kullanıcı alt koleksiyonlarını batch'ler
-  halinde siler, planlanmış bildirimleri iptal eder ve ekran state'ini resetler.
+  halinde siler, planlanmış bildirimleri iptal eder ve tüm kullanıcı veri
+  ekranlarını boş sunucu durumuyla yeniden oluşturur.
 - Android ana manifesti release dahil tüm build türlerinde `INTERNET` izni
   içerir.
 - macOS debug/profile ve release sandbox entitlement dosyaları outbound

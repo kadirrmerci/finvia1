@@ -4,6 +4,21 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Firestore silme ve bulut yenileme UI düzeltmesi
+
+Durum:
+
+- App-level veri sürümünün `FinviaApp` state'inden hatalı context aramasıyla
+  okunması kaldırıldı; sürüm artık doğrudan başlangıç kapısına aktarılıyor.
+- Firestore'daki tüm kullanıcı verileri silindikten sonra `MainNavigation` ve
+  `IndexedStack` içindeki ekran state'leri yeniden oluşturularak eski istemci
+  listelerinin görünmeye devam etmesi engellendi.
+- Ayarlar ekranındaki Bulut Senkronizasyon eylemi bağlantı kontrolü olmaktan
+  çıkarıldı; sunucu ayarlarını/tema modunu ve tüm veri ekranlarını yeniden
+  yüklüyor.
+- Yenileme sırasında dispose edilen ekranlarda gecikmiş async sonuçların
+  `setState` çağırması engellendi ve tab controller'lar dispose ediliyor.
+
 ## 2026-06-13 — Firestore-only kullanıcı verisi
 
 Durum:

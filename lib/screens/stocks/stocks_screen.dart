@@ -120,6 +120,7 @@ class _StocksScreenState extends State<StocksScreen>
 
   Future<void> _loadHoldings() async {
     final data = await _db.getHoldings();
+    if (!mounted) return;
     setState(() => _holdings = data);
     _updatePrices();
   }
@@ -198,6 +199,12 @@ class _StocksScreenState extends State<StocksScreen>
       setState(() => _searchResults = []);
     }
     setState(() => _isSearching = false);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   double get _totalInvested => _holdings.fold(0, (s, h) => s + h.totalCost);

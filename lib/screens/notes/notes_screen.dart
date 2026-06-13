@@ -44,6 +44,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _loadNotes() async {
     final data = await _db.getNotes();
+    if (!mounted) return;
     setState(() => _notes = data);
   }
 
