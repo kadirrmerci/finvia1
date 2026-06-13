@@ -4,6 +4,16 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Kredi kartı ekstre tutarı güncellemesi
+
+Durum:
+
+- Kredi kartındaki `Yeni Ekstre Ekle` aksiyonu `Ekstre tutarı güncelle`
+  olarak yeniden adlandırıldı.
+- Girilen ekstre tutarı artık mevcut kart borcuna eklenmez; kartın güncel borcu
+  doğrudan girilen tutara eşitlenir.
+- Ekstre geçmişi kaydı oluşturulmaya devam eder.
+
 ## 2026-06-13 — Borçlara ara ödeme desteği
 
 Durum:

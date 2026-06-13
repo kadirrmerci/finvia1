@@ -1533,7 +1533,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                               width: double.infinity,
                               child: OutlinedButton.icon(
                                 icon: const Icon(Icons.receipt_long, size: 16),
-                                label: const Text('Yeni Ekstre Ekle'),
+                                label: const Text('Ekstre tutarı güncelle'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF6C63FF),
                                 ),
@@ -1666,7 +1666,7 @@ class _FinanceScreenState extends State<FinanceScreen>
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const Text(
-              'Yeni Ekstre Tutarı',
+              'Ekstre Tutarını Güncelle',
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -1720,15 +1720,13 @@ class _FinanceScreenState extends State<FinanceScreen>
                     dueDate: dueDate,
                   );
                   await _db.insertStatement(statement);
-                  final updated = card.copyWith(
-                    currentDebt: card.currentDebt + amount,
-                  );
+                  final updated = card.copyWith(currentDebt: amount);
                   await _db.updateCreditCard(updated);
                   await _loadAll();
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text(
-                  'Ekstre Ekle',
+                  'Ekstre Tutarını Güncelle',
                   style: TextStyle(fontSize: 16),
                 ),
               ),
