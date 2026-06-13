@@ -234,6 +234,8 @@ Kullanılan pattern:
 - Lokal yazımlar önce SQLite'a kaydedilir, ardından Firestore'a yansıtılır.
 - Silinen Firestore kayıtları `isDeleted: true` tombstone alanıyla korunur.
 - Ayarlar ekranı manuel senkronizasyon ve gerçek başarı/hata sonucu sunar.
+- Web sürümü veriyi doğrudan Firestore'dan okur/yazar; manuel senkronizasyon
+  SQLite açmadan sunucu erişimini doğrular.
 - Android ana manifesti release dahil tüm build türlerinde `INTERNET` izni
   içerir.
 - macOS debug/profile ve release sandbox entitlement dosyaları outbound

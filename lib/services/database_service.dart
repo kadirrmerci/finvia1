@@ -370,13 +370,25 @@ class DatabaseService {
   Future<bool> syncCurrentUserData() async {
     try {
       final userId = _currentUserId;
+      if (kIsWeb) {
+        // Web uses Firestore directly, so there is no SQLite database to merge.
+        await _userDoc(userId)
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 15));
+        return true;
+      }
+
       final db = await _databaseForCurrentUser();
       await (() async {
-        await _pullRemoteRows(db, userId);
+        // Preserve device data first. Pulling tombstones or timing out before
+        // the upload must never prevent existing local records reaching cloud.
         await _pushLocalRows(db, userId);
-      })().timeout(const Duration(seconds: 15));
+        await _pullRemoteRows(db, userId);
+      })().timeout(const Duration(seconds: 60));
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Finvia data sync failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return false;
     }
   }

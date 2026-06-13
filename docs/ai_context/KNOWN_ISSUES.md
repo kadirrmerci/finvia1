@@ -114,6 +114,9 @@ Kalan risk:
 - Eski kayıtların geçmişteki gerçek sahibini belirlemek mümkün değildir.
 - Firestore sync MVP düzeyindedir: write-through, başlangıç ve manuel sync
   vardır; realtime listener ve conflict resolution henüz yoktur.
+- Web sürümünde lokal SQLite bulunmaz; native cihazdaki kayıtların web'de
+  görünmesi için önce native uygulamanın başarılı biçimde Firestore'a
+  yüklemesi gerekir.
 - `firestore.rules` deploy edilmeden production güvenliği tamamlanmış sayılmaz.
 
 ### 7. DB dosya adı değişikliği eski kullanıcı verisini ayırabilir

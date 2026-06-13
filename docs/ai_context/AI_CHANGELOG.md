@@ -4,6 +4,24 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Web senkronizasyon yolu düzeltildi
+
+Durum:
+
+- Web'de bulunmayan SQLite veritabanını açmaya çalışan manuel/başlangıç
+  senkronizasyonu düzeltildi.
+- Web senkronizasyonu artık Firestore sunucu erişimini doğruluyor.
+- Senkronizasyon hataları geliştirici logunda gerçek hata ve stack trace ile
+  raporlanıyor.
+- Native SQLite verilerinin web'de görünmesi için önce native uygulamadan
+  Firestore'a yüklenmesi gerektiği dokümante edildi.
+- VS Code çalıştırma profillerine macOS debug hedefi yeniden eklendi; Chrome
+  profilleri yanlış hedef seçimini önlemek için kaldırıldı.
+- Native senkronizasyon lokal kayıtları korumak için önce SQLite verilerini
+  Firestore'a yüklüyor, ardından uzak kayıtları indiriyor.
+- Çok koleksiyonlu ilk senkronizasyon zaman aşımı 15 saniyeden 60 saniyeye
+  çıkarıldı.
+
 ## 2026-06-13 — Test branch sağlık ve finans migration birleşimi
 
 Durum:
