@@ -4,6 +4,16 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Bütçe kalemlerini düzenleme ve silme
+
+Durum:
+
+- Finans modülündeki bütçe kartlarına düzenleme ve silme işlemleri eklendi.
+- Düzenleme akışı kategori ve aylık limiti mevcut kayıt üzerinde günceller.
+- Silme işlemi geri alınamaz onayından sonra lokal ve Firestore senkronlu kaydı
+  tamamen kaldırır.
+- Bütçe limitinde sayı olmayan, sıfır ve negatif değerler engellenir.
+
 ## 2026-06-13 — Web senkronizasyon yolu düzeltildi
 
 Durum:
