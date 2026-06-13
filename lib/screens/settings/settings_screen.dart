@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../main.dart';
 import '../../services/database_service.dart';
+import '../../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -42,34 +42,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
     final user = FirebaseAuth.instance.currentUser;
+    final settings = await DatabaseService().getAppSettings();
+    if (!mounted) return;
     setState(() {
-      _name = user?.displayName ?? prefs.getString('name') ?? '';
-      _email = user?.email ?? prefs.getString('email') ?? '';
-      _currency = prefs.getString('currency') ?? '₺';
-      _isDarkMode = prefs.getBool('darkMode') ?? false;
-      _notificationsEnabled = prefs.getBool('notifications') ?? true;
-      _debtReminder = prefs.getBool('debtReminder') ?? true;
-      _subscriptionReminder = prefs.getBool('subscriptionReminder') ?? true;
-      _selectedColor = prefs.getString('accentColor') ?? '6C63FF';
+      _name = user?.displayName ?? settings['name'] as String? ?? '';
+      _email = user?.email ?? settings['email'] as String? ?? '';
+      _currency = settings['currency'] as String? ?? '₺';
+      _isDarkMode = settings['darkMode'] as bool? ?? false;
+      _notificationsEnabled = settings['notifications'] as bool? ?? true;
+      _debtReminder = settings['debtReminder'] as bool? ?? true;
+      _subscriptionReminder = settings['subscriptionReminder'] as bool? ?? true;
+      _selectedColor = settings['accentColor'] as String? ?? '6C63FF';
     });
   }
 
   Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('name', _name);
-    await prefs.setString('email', _email);
-    await prefs.setString('currency', _currency);
-    await prefs.setBool('darkMode', _isDarkMode);
-    await prefs.setBool('notifications', _notificationsEnabled);
-    await prefs.setBool('debtReminder', _debtReminder);
-    await prefs.setBool('subscriptionReminder', _subscriptionReminder);
-    await prefs.setString('accentColor', _selectedColor);
+    await DatabaseService().saveAppSettings({
+      'name': _name,
+      'email': _email,
+      'currency': _currency,
+      'darkMode': _isDarkMode,
+      'notifications': _notificationsEnabled,
+      'debtReminder': _debtReminder,
+      'subscriptionReminder': _subscriptionReminder,
+      'accentColor': _selectedColor,
+    });
   }
 
   Future<void> _loadAppVersion() async {
     final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
     setState(() => _appVersion = '${info.version} (${info.buildNumber})');
   }
 
@@ -508,15 +511,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _syncCloudData() async {
-    final succeeded = await DatabaseService().syncCurrentUserData();
+    final succeeded = await DatabaseService().verifyCloudAccess();
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           succeeded
-              ? 'Veriler Firestore ile senkronize edildi.'
-              : 'Senkronizasyon tamamlanamadı. Lütfen tekrar deneyin.',
+              ? 'Firestore bağlantısı doğrulandı.'
+              : 'Bulut bağlantısı kurulamadı. Lütfen tekrar deneyin.',
         ),
         backgroundColor: succeeded ? Colors.green : Colors.orange,
       ),
@@ -593,19 +596,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tüm veriler silindi'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              await _deleteAllData();
             },
             child: const Text('Sil'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _deleteAllData() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(child: Text('Bulut verileri siliniyor...')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await DatabaseService().deleteAllCurrentUserData();
+      await NotificationService().cancelAllNotifications();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      setState(() {
+        _currency = '₺';
+        _isDarkMode = false;
+        _notificationsEnabled = true;
+        _debtReminder = true;
+        _subscriptionReminder = true;
+        _selectedColor = '6C63FF';
+      });
+      FinviaApp.of(context)?.updateTheme(false);
+      FinviaApp.of(context)?.resetUserData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tüm bulut verileri silindi.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Finvia user data deletion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veriler silinemedi. Lütfen tekrar deneyin.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

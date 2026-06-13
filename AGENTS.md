@@ -15,8 +15,7 @@
 - Ana teknik yığın:
   - Flutter / Dart
   - Firebase Core, Firebase Auth, Cloud Firestore
-  - sqflite ile lokal SQLite
-  - shared_preferences ile küçük ayarlar
+  - Cloud Firestore ile kullanıcı verisi ve ayar kalıcılığı
   - flutter_local_notifications + timezone
   - fl_chart
   - http ile Yahoo Finance endpointleri
@@ -41,7 +40,7 @@ Coding agent şu sırayı izlemelidir:
 2. Eski marka/ad izleri (`mylife`, `MyLife`, `Elite Life`, `elite_life`, `elitelife`) yeni eklenen kodda kullanılmamalı.
 3. Firebase backend project id şu anda `elite-life-48631` olarak duruyor. Bu değer marka metni gibi değiştirilmemeli; Firebase Console / FlutterFire yeniden yapılandırması yapılmadan keyfi değiştirme.
 4. Android uygulama kimliği şu anda `com.finvia.app` olarak hedeflenmiş durumda.
-5. Yerel veritabanı dosya adı şu anda `finvia.db`.
+5. Kullanıcı domain verisinin tek kalıcı kaynağı Cloud Firestore'dur.
 6. Ana navigasyon sırası korunmalı:
    - Notlar
    - Finans
@@ -103,19 +102,18 @@ Firebase ile ilgili özel dikkat:
 - Google Sign-In, Firebase Auth ve Firestore kuralları birlikte test edilmeden auth refactor yapma.
 - Public repo’da Firebase web/mobile API key görünmesi tek başına klasik secret sayılmaz; yine de Firestore rules, API restrictions ve App Check kontrol edilmeden production’a çıkma.
 
-## 8. SQLite / veri modeli kuralları
+## 8. Firestore / veri modeli kuralları
 
-- Lokal DB `lib/services/database_service.dart` içinde singleton `DatabaseService` ile yönetiliyor.
-- DB dosyası: `finvia.db`
-- DB version şu anda `7`.
-- Yeni tablo/kolon eklenirse:
-  - Sadece `_createTables` değiştirme yeterli değildir.
-  - `onUpgrade` içinde `oldVersion` kontrollü migration yaz.
-  - `CREATE TABLE IF NOT EXISTS` mevcut tabloya yeni kolon eklemez.
-  - Kolon eklemek için `ALTER TABLE ... ADD COLUMN ...` veya güvenli migration stratejisi kullan.
-- Model `toMap/fromMap` ile tablo şeması birebir uyumlu olmalı.
-- Eski kullanıcı verisi kaybolmamalı.
-- Veritabanı dosya adını tekrar değiştirme; değiştirmen gerekiyorsa migration/transfer planı yaz.
+- `lib/services/database_service.dart`, kullanıcı domain verisini doğrudan
+  `users/{uid}/{collection}/{documentId}` altında yönetir.
+- SQLite, cihaz dosyası ve kalıcı SharedPreferences kullanıcı verisi için
+  kullanılmamalıdır.
+- Firestore okumaları strict cloud-only davranış için sunucu kaynağını ister.
+- Model `toMap/fromMap` alanları Firestore dokümanlarıyla uyumlu olmalıdır.
+- Yeni kullanıcı koleksiyonları `deleteAllCurrentUserData()` kapsamına da
+  eklenmelidir.
+- Production'da eski lokal veri migration ihtiyacı release öncesi ayrıca
+  değerlendirilmelidir.
 
 ## 9. Bildirim kuralları
 
@@ -214,11 +212,11 @@ Firebase ile ilgili özel dikkat:
 ## 15. Tema ve ayarlar kuralları
 
 - Ana tema `lib/main.dart` içinde `Color(0xFF6C63FF)` seedColor ile kurulmuş.
-- Ayarlar ekranı `accentColor` değerini shared_preferences’a kaydediyor.
+- Ayarlar `users/{uid}/settings/app` dokümanında tutulur.
 - Seçilen accent color şu an `MaterialApp` theme seedColor’a bağlı görünmüyor.
 - Tema refactor yapılacaksa:
   - `FinviaApp` state’i accent color ve theme mode’u birlikte yönetsin.
-  - SharedPreferences tek kaynak olsun.
+  - Firestore settings dokümanı tek kalıcı kaynak olsun.
   - Tüm sabit `Color(0xFF6C63FF)` kullanımları kademeli merkezi tema tokenlarına taşınsın.
 
 ## 16. Platform config kuralları

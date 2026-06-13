@@ -4,6 +4,22 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Firestore-only kullanıcı verisi
+
+Durum:
+
+- `DatabaseService` içindeki SQLite schema, migration ve push/pull sync kodu
+  kaldırıldı; tüm CRUD işlemleri doğrudan Firestore'a taşındı.
+- `sqflite`, `path` ve `shared_preferences` bağımlılıkları kaldırıldı.
+- Kullanıcı ayarları `users/{uid}/settings/app` dokümanına taşındı.
+- Firestore disk persistence kapatıldı ve okumalar sunucu kaynağına bağlandı.
+- Aboneliklerin kart borcuna yansıması Firestore transaction ile atomik hale
+  getirildi.
+- `Tüm Verileri Sil`, bilinen tüm kullanıcı alt koleksiyonlarını batch'lerle
+  gerçekten siliyor, planlı bildirimleri iptal ediyor ve UI state'ini resetliyor.
+- Eski SQLite-only production verileri için ayrı migration release ihtiyacı
+  bilinen risk olarak korundu.
+
 ## 2026-06-13 — Bütçe kalemlerini düzenleme ve silme
 
 Durum:
