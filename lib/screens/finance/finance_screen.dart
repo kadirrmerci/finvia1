@@ -62,6 +62,7 @@ class _FinanceScreenState extends State<FinanceScreen>
   double get _totalCreditCardDebt =>
       _creditCards.fold(0, (sum, c) => sum + c.currentDebt);
   double get _totalLiabilityBalance => _totalDebt + _totalCreditCardDebt;
+  double get _totalAssets => _totalIncome - _totalLiabilityBalance;
 
   Map<String, double> get _categoryTotals {
     final Map<String, double> totals = {};
@@ -179,12 +180,12 @@ class _FinanceScreenState extends State<FinanceScreen>
             child: Column(
               children: [
                 const Text(
-                  'Toplam Bakiye',
+                  'Toplam Varlık',
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '₺${NumberFormat('#,##0.00').format(_totalLiabilityBalance)}',
+                  '₺${NumberFormat('#,##0.00').format(_totalAssets)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 36,
@@ -204,7 +205,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                     _balanceChip(
                       Icons.arrow_downward,
                       'Gider',
-                      _totalExpense,
+                      _totalLiabilityBalance,
                       Colors.redAccent,
                     ),
                   ],
