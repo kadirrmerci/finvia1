@@ -612,6 +612,10 @@ class DatabaseService {
     return maps.map((m) => Budget.fromMap(m)).toList();
   }
 
+  Future<void> updateBudget(Budget b) async {
+    await _updateSynced(_budgetsConfig, b.id, b.toMap());
+  }
+
   Future<void> deleteBudget(String id) async {
     await _deleteSynced(_budgetsConfig, id);
   }

@@ -1149,13 +1149,14 @@ class _FinanceScreenState extends State<FinanceScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            b.category,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                          Expanded(
+                            child: Text(
+                              b.category,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
                             ),
                           ),
                           if (isOver)
@@ -1176,6 +1177,40 @@ class _FinanceScreenState extends State<FinanceScreen>
                                 ),
                               ),
                             ),
+                          PopupMenuButton<String>(
+                            tooltip: 'Bütçe işlemleri',
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                _showBudgetForm(budget: b);
+                              } else if (value == 'delete') {
+                                _confirmDeleteBudget(b);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.edit_outlined),
+                                  title: Text('Düzenle'),
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                  title: Text(
+                                    'Sil',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -2679,9 +2714,14 @@ class _FinanceScreenState extends State<FinanceScreen>
     );
   }
 
-  void _showAddBudget() {
-    String cat = 'Market';
-    final limitC = TextEditingController();
+  void _showAddBudget() => _showBudgetForm();
+
+  void _showBudgetForm({Budget? budget}) {
+    final isEditing = budget != null;
+    String cat = budget?.category ?? 'Market';
+    final limitC = TextEditingController(
+      text: budget?.limitAmount.toStringAsFixed(2),
+    );
     final cats = [
       'Market',
       'Faturalar',
@@ -2701,20 +2741,23 @@ class _FinanceScreenState extends State<FinanceScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, set) => Padding(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setModalState) => Padding(
           padding: EdgeInsets.only(
             left: 20,
             right: 20,
             top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Bütçe Hedefi Ekle',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                isEditing ? 'Bütçe Hedefini Düzenle' : 'Bütçe Hedefi Ekle',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
@@ -2728,12 +2771,14 @@ class _FinanceScreenState extends State<FinanceScreen>
                 items: cats
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
-                onChanged: (v) => set(() => cat = v ?? cat),
+                onChanged: (v) => setModalState(() => cat = v ?? cat),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: limitC,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: InputDecoration(
                   labelText: 'Aylık Limit (₺)',
                   border: OutlineInputBorder(
@@ -2754,24 +2799,73 @@ class _FinanceScreenState extends State<FinanceScreen>
                     ),
                   ),
                   onPressed: () async {
-                    if (limitC.text.isEmpty) return;
-                    final b = Budget(
-                      id: _uuid.v4(),
-                      category: cat,
-                      limitAmount: double.parse(limitC.text),
-                      month: DateFormat('yyyy-MM').format(DateTime.now()),
+                    final limit = double.tryParse(
+                      limitC.text.trim().replaceAll(',', '.'),
                     );
-                    await _db.insertBudget(b);
+                    if (limit == null || limit <= 0) {
+                      ScaffoldMessenger.of(sheetContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Aylık limit sıfırdan büyük bir sayı olmalı.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    final b = Budget(
+                      id: budget?.id ?? _uuid.v4(),
+                      category: cat,
+                      limitAmount: limit,
+                      month:
+                          budget?.month ??
+                          DateFormat('yyyy-MM').format(DateTime.now()),
+                    );
+                    if (isEditing) {
+                      await _db.updateBudget(b);
+                    } else {
+                      await _db.insertBudget(b);
+                    }
                     await _loadAll();
-                    if (context.mounted) Navigator.pop(context);
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
                   },
-                  child: const Text('Kaydet', style: TextStyle(fontSize: 16)),
+                  child: Text(
+                    isEditing ? 'Güncelle' : 'Kaydet',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+    ).whenComplete(limitC.dispose);
+  }
+
+  Future<void> _confirmDeleteBudget(Budget budget) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bütçe kalemini sil'),
+        content: Text(
+          '${budget.category} bütçe kalemi tamamen silinecek. '
+          'Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
     );
+
+    if (shouldDelete != true) return;
+    await _db.deleteBudget(budget.id);
+    await _loadAll();
   }
 }
