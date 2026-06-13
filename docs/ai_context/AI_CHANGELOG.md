@@ -4,6 +4,19 @@
 >
 > Bu dosya kullanıcı-facing release changelog değildir. Amaç: yeni chat/session/coding agent çalışmasında önceki AI kararlarını ve teknik gerekçeleri hızlı hatırlamak.
 
+## 2026-06-13 — Tekrarlanan email kaydının engellenmesi
+
+Durum:
+
+- Email kayıt akışındaki kısmi kayıt onarımı kaldırıldı. Bu akış aynı
+  email/şifreyle mevcut hesaba giriş yapıp kayıt formundaki profil bilgilerini
+  mevcut Firestore belgesine yazabiliyordu.
+- Firebase Auth `email-already-in-use` döndürdüğünde kayıt işlemi artık
+  durdurulur ve `Bu e-mail adresi ile aktif bir kullanıcı hesabı mevcut`
+  uyarısı gösterilir.
+- Mevcut kullanıcı hesabı ve `users/{uid}` profili ikinci kayıt denemesinde
+  değiştirilmez.
+
 ## 2026-06-09 — VS Code macOS launch SwiftPM düzeltmesi
 
 Durum:

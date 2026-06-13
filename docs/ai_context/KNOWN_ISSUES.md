@@ -212,9 +212,8 @@ Güncel durum:
 
 - Ana auth kapısı password provider için email verification ister; Google ve
   telefon provider'larını bu kontrolden muaf tutar.
-- Email kayıt sırasında Auth hesabı oluşup Firestore profil yazımı yarıda
-  kalırsa aynı email/şifreyle tekrar kayıt denemesi eksik `users/{uid}`
-  dokümanını onarır.
+- Email kayıt sırasında aynı email Firebase Auth içinde mevcutsa kayıt
+  durdurulur; mevcut hesaba giriş yapılmaz ve Firestore profili güncellenmez.
 - Firestore profil yazma hataları artık sessizce yutulmaz ve kullanıcıya
   gösterilir.
 

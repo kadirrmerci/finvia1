@@ -147,10 +147,14 @@ Email kayıt akışı:
 1. Form validasyonu
 2. `createUserWithEmailAndPassword`
 3. `updateDisplayName`
-4. `sendEmailVerification`
-5. `_saveUserToFirestore`
+4. `_saveUserToFirestore`
+5. `sendEmailVerification`
 6. `signOut`
 7. Kullanıcıdan email doğrulaması beklenir
+
+Firebase Auth içinde email zaten kayıtlıysa kayıt işlemi durdurulur ve kullanıcıya
+`Bu e-mail adresi ile aktif bir kullanıcı hesabı mevcut` uyarısı gösterilir.
+Mevcut hesaba otomatik giriş yapılmaz ve Firestore profili güncellenmez.
 
 Login akışı:
 
