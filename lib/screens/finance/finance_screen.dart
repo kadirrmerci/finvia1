@@ -61,8 +61,12 @@ class _FinanceScreenState extends State<FinanceScreen>
   double get _totalDebt => _debts.fold(0, (sum, d) => sum + d.remainingAmount);
   double get _totalCreditCardDebt =>
       _creditCards.fold(0, (sum, c) => sum + c.currentDebt);
-  double get _totalLiabilityBalance => _totalDebt + _totalCreditCardDebt;
-  double get _totalAssets => _totalIncome - _totalLiabilityBalance;
+  double get _totalCashExpense => _transactions
+      .where((t) => t.isExpense && t.creditCardId == null)
+      .fold(0, (sum, t) => sum + t.amount);
+  double get _totalExpenseBalance =>
+      _totalDebt + _totalCreditCardDebt + _totalCashExpense;
+  double get _totalAssets => _totalIncome - _totalExpenseBalance;
 
   Map<String, double> get _categoryTotals {
     final Map<String, double> totals = {};
@@ -205,10 +209,32 @@ class _FinanceScreenState extends State<FinanceScreen>
                     _balanceChip(
                       Icons.arrow_downward,
                       'Gider',
-                      _totalLiabilityBalance,
+                      _totalExpenseBalance,
                       Colors.redAccent,
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      _expenseBreakdownItem('Borç', _totalDebt),
+                      _expenseBreakdownItem('Kart', _totalCreditCardDebt),
+                      _expenseBreakdownItem('Nakit', _totalCashExpense),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -399,6 +425,17 @@ class _FinanceScreenState extends State<FinanceScreen>
           style: TextStyle(color: color, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  Widget _expenseBreakdownItem(String label, double amount) {
+    return Text(
+      '$label: ₺${NumberFormat('#,##0.00').format(amount)}',
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 
@@ -941,8 +978,8 @@ class _FinanceScreenState extends State<FinanceScreen>
                 amount: d.monthlyPayment,
                 category: 'Borç Ödemesi',
                 date: DateTime.now(),
-                isExpense: true,
-                isFixed: true,
+                isExpense: false,
+                isFixed: false,
               );
               await _db.insertTransaction(t);
               await _loadAll();
