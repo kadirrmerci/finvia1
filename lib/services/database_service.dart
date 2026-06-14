@@ -10,6 +10,7 @@ import '../models/note.dart';
 import '../models/health_record.dart';
 import '../models/habit.dart';
 import '../models/credit_card_model.dart';
+import '../models/menstrual_cycle_record.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -26,6 +27,7 @@ class DatabaseService {
     'health_records',
     'health_goals',
     'habits',
+    'menstrual_cycles',
     'credit_cards',
     'credit_card_statements',
     'settings',
@@ -283,6 +285,9 @@ class DatabaseService {
   Future<void> insertHealthRecord(HealthRecord record) =>
       _setDoc('health_records', record.id, record.toMap());
 
+  Future<void> updateHealthRecord(HealthRecord record) =>
+      _setDoc('health_records', record.id, record.toMap());
+
   Future<List<HealthRecord>> getHealthRecords() async {
     final rows = await _getCollection('health_records');
     rows.sort(
@@ -294,6 +299,29 @@ class DatabaseService {
 
   Future<void> deleteHealthRecord(String id) =>
       _deleteDoc('health_records', id);
+
+  Future<String?> getCurrentUserGender() async {
+    final doc = await _userDoc(
+      _currentUserId,
+    ).get(const GetOptions(source: Source.server));
+    return doc.data()?['gender']?.toString();
+  }
+
+  Future<void> insertMenstrualCycle(MenstrualCycleRecord record) =>
+      _setDoc('menstrual_cycles', record.id, record.toMap());
+
+  Future<List<MenstrualCycleRecord>> getMenstrualCycles() async {
+    final rows = await _getCollection('menstrual_cycles');
+    rows.sort(
+      (a, b) => (b['periodStart']?.toString() ?? '').compareTo(
+        a['periodStart']?.toString() ?? '',
+      ),
+    );
+    return rows.map(MenstrualCycleRecord.fromMap).toList();
+  }
+
+  Future<void> deleteMenstrualCycle(String id) =>
+      _deleteDoc('menstrual_cycles', id);
 
   Future<Map<String, dynamic>?> getHealthGoal() async {
     final doc = await _userCollection(

@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../models/health_record.dart';
 import '../../models/habit.dart';
+import '../../models/menstrual_cycle_record.dart';
 import '../../services/body_fat_service.dart';
 import '../../services/database_service.dart';
 import '../../services/notification_service.dart';
@@ -19,7 +20,9 @@ class _HealthScreenState extends State<HealthScreen>
   late TabController _tabController;
   List<HealthRecord> _records = [];
   List<Habit> _habits = [];
+  List<MenstrualCycleRecord> _cycles = [];
   double? _targetWeight;
+  String? _profileGender;
   final _db = DatabaseService();
   final _uuid = const Uuid();
   final _bodyFatService = const BodyFatService();
@@ -27,21 +30,37 @@ class _HealthScreenState extends State<HealthScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadAll();
   }
 
   Future<void> _loadAll() async {
     final records = await _db.getHealthRecords();
     final habits = await _db.getHabits();
+    final cycles = await _db.getMenstrualCycles();
     final goal = await _db.getHealthGoal();
+    final profileGender = await _db.getCurrentUserGender();
     if (!mounted) return;
+    final nextLength = profileGender == 'female' ? 3 : 2;
+    if (_tabController.length != nextLength) {
+      final nextIndex = _tabController.index.clamp(0, nextLength - 1);
+      _tabController.dispose();
+      _tabController = TabController(
+        length: nextLength,
+        vsync: this,
+        initialIndex: nextIndex,
+      );
+    }
     setState(() {
       _records = records;
       _habits = habits;
+      _cycles = cycles;
       _targetWeight = (goal?['targetWeight'] as num?)?.toDouble();
+      _profileGender = profileGender;
     });
   }
+
+  bool get _showMenstrualCycle => _profileGender == 'female';
 
   @override
   void dispose() {
@@ -59,23 +78,27 @@ class _HealthScreenState extends State<HealthScreen>
         ),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Kilo Takibi'),
-            Tab(text: 'Yağ Oranı'),
-            Tab(text: 'Alışkanlıklar'),
+          tabs: [
+            const Tab(text: 'Vücut Takibi'),
+            if (_showMenstrualCycle) const Tab(text: 'Adet Döngüsü'),
+            const Tab(text: 'Alışkanlıklar'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildWeight(), _buildBodyFat(), _buildHabits()],
+        children: [
+          _buildBodyFat(),
+          if (_showMenstrualCycle) _buildMenstrualCycle(),
+          _buildHabits(),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_tabController.index == 0) {
-            _showAddWeight();
-          } else if (_tabController.index == 1) {
             _showAddBodyFatMeasurement();
+          } else if (_showMenstrualCycle && _tabController.index == 1) {
+            _showAddMenstrualCycle();
           } else {
             _showAddHabit();
           }
@@ -86,6 +109,7 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildWeight() {
     if (_records.isEmpty) {
       return Center(
@@ -354,8 +378,11 @@ class _HealthScreenState extends State<HealthScreen>
     final bodyFatRecords = _records
         .where((r) => r.bodyFatPercentage != null)
         .toList(growable: false);
+    final measurementRecords = _records
+        .where(_hasBodyMeasurement)
+        .toList(growable: false);
 
-    if (bodyFatRecords.isEmpty) {
+    if (bodyFatRecords.isEmpty && measurementRecords.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -367,7 +394,7 @@ class _HealthScreenState extends State<HealthScreen>
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
             const Text(
-              '+ butonuna basarak ACE ölçümü ekle',
+              '+ butonuna basarak bilimsel ölçüm ekle',
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
@@ -381,20 +408,21 @@ class _HealthScreenState extends State<HealthScreen>
       );
     }
 
-    final latest = bodyFatRecords.first;
+    final latest = bodyFatRecords.isEmpty ? null : bodyFatRecords.first;
     final previous = bodyFatRecords.length > 1 ? bodyFatRecords[1] : null;
-    final change = previous == null
+    final change = latest == null || previous == null
         ? null
         : latest.bodyFatPercentage! - previous.bodyFatPercentage!;
-    final latestFfmi =
-        latest.ffmi ??
-        (latest.height == null
-            ? null
-            : _bodyFatService.calculateFfmi(
-                weightKg: latest.weight,
-                heightCm: latest.height!,
-                bodyFatPercentage: latest.bodyFatPercentage!,
-              ));
+    final latestFfmi = latest == null
+        ? null
+        : latest.ffmi ??
+              (latest.height == null
+                  ? null
+                  : _bodyFatService.calculateFfmi(
+                      weightKg: latest.weight,
+                      heightCm: latest.height!,
+                      bodyFatPercentage: latest.bodyFatPercentage!,
+                    ));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -404,14 +432,16 @@ class _HealthScreenState extends State<HealthScreen>
             Expanded(
               child: _metricPill(
                 'BW',
-                '${latest.weight.toStringAsFixed(1)} kg',
+                latest == null ? '-' : '${latest.weight.toStringAsFixed(1)} kg',
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _metricPill(
                 'BF',
-                '%${latest.bodyFatPercentage!.toStringAsFixed(2)}',
+                latest == null
+                    ? '-'
+                    : '%${latest.bodyFatPercentage!.toStringAsFixed(2)}',
               ),
             ),
             const SizedBox(width: 8),
@@ -426,7 +456,9 @@ class _HealthScreenState extends State<HealthScreen>
             Expanded(
               child: _weightCard(
                 'Güncel Yağ Oranı',
-                '%${latest.bodyFatPercentage!.toStringAsFixed(1)}',
+                latest == null
+                    ? '-'
+                    : '%${latest.bodyFatPercentage!.toStringAsFixed(1)}',
                 Icons.percent,
                 Colors.deepOrange,
               ),
@@ -461,60 +493,35 @@ class _HealthScreenState extends State<HealthScreen>
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        _measurementSection('Vücut Ağırlığı', bodyFatRecords, (r) => r.weight),
-        _measurementSection('Boyun', bodyFatRecords, (r) => r.neck),
-        _measurementSection('Omuz', bodyFatRecords, (r) => r.shoulder),
-        _measurementSection('Göğüs', bodyFatRecords, (r) => r.chest),
-        _measurementSection('Kol', bodyFatRecords, (r) => r.arm),
-        _measurementSection('Bel', bodyFatRecords, (r) => r.waist),
-        _measurementSection('Kalça', bodyFatRecords, (r) => r.hip),
-        _measurementSection('Bacak', bodyFatRecords, (r) => r.thigh),
-        _measurementSection('Baldır', bodyFatRecords, (r) => r.calf),
         _measurementSection(
-          'Yağ Oranı',
-          bodyFatRecords,
-          (r) => r.bodyFatPercentage,
-          suffix: '%',
+          'Vücut Ağırlığı',
+          measurementRecords,
+          (r) => r.weight <= 0 ? null : r.weight,
+          field: _BodyMeasurementField.weight,
         ),
         _measurementSection(
-          'FFMI',
-          bodyFatRecords,
-          (r) =>
-              r.ffmi ??
-              (r.height == null || r.bodyFatPercentage == null
-                  ? null
-                  : _bodyFatService.calculateFfmi(
-                      weightKg: r.weight,
-                      heightCm: r.height!,
-                      bodyFatPercentage: r.bodyFatPercentage!,
-                    )),
+          'Boy',
+          measurementRecords,
+          (r) => r.height,
+          field: _BodyMeasurementField.height,
         ),
-        const SizedBox(height: 16),
-        const Text(
-          'Ölçüm Raporu',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        _measurementSection(
+          'Boyun',
+          measurementRecords,
+          (r) => r.neck,
+          field: _BodyMeasurementField.neck,
         ),
-        const SizedBox(height: 8),
-        ...bodyFatRecords.map(
-          (record) => Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.analytics)),
-              title: Text(
-                '%${record.bodyFatPercentage!.toStringAsFixed(1)} yağ oranı',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(
-                '${DateFormat('dd MMMM yyyy').format(record.date)} • '
-                '${record.weight.toStringAsFixed(1)} kg • '
-                '${record.waist?.toStringAsFixed(1) ?? '-'} cm bel • '
-                '${_bodyFatService.aceCategory(gender: record.gender ?? 'male', bodyFat: record.bodyFatPercentage!)}',
-              ),
-            ),
-          ),
+        _measurementSection(
+          'Bel',
+          measurementRecords,
+          (r) => r.waist,
+          field: _BodyMeasurementField.waist,
+        ),
+        _measurementSection(
+          'Kalça',
+          measurementRecords,
+          (r) => r.hip,
+          field: _BodyMeasurementField.hip,
         ),
       ],
     );
@@ -558,6 +565,7 @@ class _HealthScreenState extends State<HealthScreen>
     String title,
     List<HealthRecord> records,
     double? Function(HealthRecord record) selector, {
+    _BodyMeasurementField? field,
     String suffix = '',
   }) {
     final values = records
@@ -582,14 +590,6 @@ class _HealthScreenState extends State<HealthScreen>
             ),
           ),
           children: [
-            ListTile(
-              leading: const Icon(Icons.add),
-              title: const Text(
-                'Ölçü Ekle',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: _showAddBodyFatMeasurement,
-            ),
             ...values.map((record) {
               final value = selector(record)!;
               return ListTile(
@@ -600,7 +600,19 @@ class _HealthScreenState extends State<HealthScreen>
                     fontSize: 20,
                   ),
                 ),
-                trailing: Text(_relativeDayText(record.date)),
+                subtitle: Text(_relativeDayText(record.date)),
+                trailing: field == null
+                    ? null
+                    : IconButton(
+                        tooltip: 'Düzenle',
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _showSingleMeasurementEditor(
+                          title: title,
+                          field: field,
+                          record: record,
+                          currentValue: value,
+                        ),
+                      ),
               );
             }),
           ],
@@ -609,10 +621,452 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
+  bool _hasBodyMeasurement(HealthRecord record) {
+    return record.weight > 0 ||
+        record.height != null ||
+        record.neck != null ||
+        record.hip != null ||
+        record.waist != null ||
+        record.bodyFatPercentage != null;
+  }
+
+  void _showSingleMeasurementEditor({
+    required String title,
+    required _BodyMeasurementField field,
+    HealthRecord? record,
+    double? currentValue,
+  }) {
+    final valueC = TextEditingController(
+      text: currentValue == null ? '' : currentValue.toStringAsFixed(1),
+    );
+    var selectedDate = record?.date ?? DateTime.now();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, set) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$title Ölçüsü',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: valueC,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: '$title (cm/kg)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today),
+                title: Text(DateFormat('dd MMMM yyyy').format(selectedDate)),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                  );
+                  if (picked != null) set(() => selectedDate = picked);
+                },
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final value = _parseDouble(valueC.text);
+                    if (value == null) {
+                      _showHealthMessage(
+                        'Geçerli bir ölçü gir.',
+                        isError: true,
+                      );
+                      return;
+                    }
+                    final updated = _copyHealthRecordWithMeasurement(
+                      record ??
+                          HealthRecord(
+                            id: _uuid.v4(),
+                            weight: field == _BodyMeasurementField.weight
+                                ? value
+                                : 0,
+                            date: selectedDate,
+                          ),
+                      field,
+                      value,
+                      selectedDate,
+                    );
+                    if (record == null) {
+                      await _db.insertHealthRecord(updated);
+                    } else {
+                      await _db.updateHealthRecord(updated);
+                    }
+                    await _loadAll();
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      _showHealthMessage('$title ölçüsü kaydedildi.');
+                    }
+                  },
+                  child: Text(record == null ? 'Kaydet' : 'Güncelle'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  HealthRecord _copyHealthRecordWithMeasurement(
+    HealthRecord record,
+    _BodyMeasurementField field,
+    double? value,
+    DateTime date,
+  ) {
+    final updated = HealthRecord(
+      id: record.id,
+      weight: field == _BodyMeasurementField.weight
+          ? (value ?? 0)
+          : record.weight,
+      date: date,
+      note: record.note,
+      height: field == _BodyMeasurementField.height ? value : record.height,
+      waist: field == _BodyMeasurementField.waist ? value : record.waist,
+      neck: field == _BodyMeasurementField.neck ? value : record.neck,
+      hip: field == _BodyMeasurementField.hip ? value : record.hip,
+      shoulder: field == _BodyMeasurementField.shoulder
+          ? value
+          : record.shoulder,
+      chest: field == _BodyMeasurementField.chest ? value : record.chest,
+      arm: field == _BodyMeasurementField.arm ? value : record.arm,
+      thigh: field == _BodyMeasurementField.thigh ? value : record.thigh,
+      calf: field == _BodyMeasurementField.calf ? value : record.calf,
+      gender: record.gender ?? 'male',
+      bodyFatPercentage: record.bodyFatPercentage,
+      ffmi: record.ffmi,
+    );
+    return _withRecalculatedBodyMetrics(updated);
+  }
+
+  HealthRecord _withRecalculatedBodyMetrics(HealthRecord record) {
+    final gender = record.gender ?? 'male';
+    final canCalculate =
+        record.weight > 0 &&
+        record.height != null &&
+        record.waist != null &&
+        record.neck != null &&
+        (gender != 'female' || record.hip != null);
+
+    double? bodyFat;
+    double? ffmi;
+    if (canCalculate) {
+      try {
+        bodyFat = _bodyFatService
+            .calculateAceNavyBodyFat(
+              gender: gender,
+              heightCm: record.height!,
+              waistCm: record.waist!,
+              neckCm: record.neck!,
+              hipCm: record.hip,
+            )
+            .clamp(2, 75)
+            .toDouble();
+        ffmi = _bodyFatService.calculateFfmi(
+          weightKg: record.weight,
+          heightCm: record.height!,
+          bodyFatPercentage: bodyFat,
+        );
+      } catch (_) {
+        bodyFat = null;
+        ffmi = null;
+      }
+    }
+
+    return HealthRecord(
+      id: record.id,
+      weight: record.weight,
+      date: record.date,
+      note: record.note,
+      height: record.height,
+      waist: record.waist,
+      neck: record.neck,
+      hip: record.hip,
+      shoulder: record.shoulder,
+      chest: record.chest,
+      arm: record.arm,
+      thigh: record.thigh,
+      calf: record.calf,
+      gender: gender,
+      bodyFatPercentage: bodyFat,
+      ffmi: ffmi,
+    );
+  }
+
   String _relativeDayText(DateTime date) {
     final days = DateTime.now().difference(date).inDays;
     if (days <= 0) return 'bugün';
     return '$days gün önce';
+  }
+
+  Widget _buildMenstrualCycle() {
+    if (_cycles.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Henüz adet döngüsü kaydı yok',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+            Text(
+              '+ butonuna basarak son adet başlangıcını ekle',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final latest = _cycles.first;
+    final predictedCycleLength = _predictedCycleLength();
+    final prediction = MenstrualCycleRecord(
+      id: latest.id,
+      periodStart: latest.periodStart,
+      cycleLength: predictedCycleLength,
+      periodLength: latest.periodLength,
+      note: latest.note,
+    );
+    final daysToPeriod = prediction.nextPeriodStart
+        .difference(DateTime.now())
+        .inDays;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _weightCard(
+                'Sonraki Adet',
+                DateFormat('dd MMM').format(prediction.nextPeriodStart),
+                Icons.event,
+                Colors.pink,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _weightCard(
+                'Kalan Gün',
+                daysToPeriod < 0 ? 'geçti' : '$daysToPeriod gün',
+                Icons.hourglass_bottom,
+                Colors.purple,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _weightCard(
+                'Ovulasyon',
+                DateFormat('dd MMM').format(prediction.ovulationDate),
+                Icons.egg_alt_outlined,
+                Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _weightCard(
+                'Verimli Pencere',
+                '${DateFormat('dd MMM').format(prediction.fertileStart)} - ${DateFormat('dd MMM').format(prediction.fertileEnd)}',
+                Icons.favorite_outline,
+                Colors.red,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Tahmini döngü: $predictedCycleLength gün',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Kayıtlar',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ..._cycles.map(
+          (cycle) => Dismissible(
+            key: Key(cycle.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              color: Colors.red,
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            onDismissed: (_) async {
+              await _db.deleteMenstrualCycle(cycle.id);
+              await _loadAll();
+            },
+            child: Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.water_drop)),
+                title: Text(
+                  DateFormat('dd MMMM yyyy').format(cycle.periodStart),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  '${cycle.cycleLength} gün döngü • ${cycle.periodLength} gün adet',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _predictedCycleLength() {
+    if (_cycles.isEmpty) return 28;
+    final lengths = _cycles.take(6).map((c) => c.cycleLength).toList();
+    if (lengths.length == 1) return lengths.first;
+    var weightedSum = 0.0;
+    var totalWeight = 0.0;
+    for (var i = 0; i < lengths.length; i++) {
+      final weight = lengths.length - i;
+      weightedSum += lengths[i] * weight;
+      totalWeight += weight;
+    }
+    return (weightedSum / totalWeight).round().clamp(21, 45);
+  }
+
+  void _showAddMenstrualCycle() {
+    var periodStart = DateTime.now();
+    final cycleLengthC = TextEditingController(text: '28');
+    final periodLengthC = TextEditingController(text: '5');
+    final noteC = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, set) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Adet Döngüsü',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_today),
+                  title: Text(DateFormat('dd MMMM yyyy').format(periodStart)),
+                  subtitle: const Text('Son adet başlangıç tarihi'),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: periodStart,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 1)),
+                    );
+                    if (picked != null) set(() => periodStart = picked);
+                  },
+                ),
+                _numberField(cycleLengthC, 'Döngü uzunluğu (gün)'),
+                _numberField(periodLengthC, 'Adet süresi (gün)'),
+                TextField(
+                  controller: noteC,
+                  decoration: InputDecoration(
+                    labelText: 'Not (opsiyonel)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final cycleLength =
+                          int.tryParse(cycleLengthC.text.trim()) ?? 28;
+                      final periodLength =
+                          int.tryParse(periodLengthC.text.trim()) ?? 5;
+                      if (cycleLength < 21 ||
+                          cycleLength > 45 ||
+                          periodLength < 1 ||
+                          periodLength > 12) {
+                        _showHealthMessage(
+                          'Döngü ve adet süresi değerlerini kontrol et.',
+                          isError: true,
+                        );
+                        return;
+                      }
+                      await _db.insertMenstrualCycle(
+                        MenstrualCycleRecord(
+                          id: _uuid.v4(),
+                          periodStart: periodStart,
+                          cycleLength: cycleLength,
+                          periodLength: periodLength,
+                          note: noteC.text.trim().isEmpty
+                              ? null
+                              : noteC.text.trim(),
+                        ),
+                      );
+                      await _loadAll();
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        _showHealthMessage('Adet döngüsü kaydedildi.');
+                      }
+                    },
+                    child: const Text('Kaydet'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildHabits() {
@@ -1071,18 +1525,24 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
-  void _showAddBodyFatMeasurement() {
-    final weightC = TextEditingController();
-    final heightC = TextEditingController();
-    final waistC = TextEditingController();
-    final neckC = TextEditingController();
-    final hipC = TextEditingController();
-    final shoulderC = TextEditingController();
-    final chestC = TextEditingController();
-    final armC = TextEditingController();
-    final thighC = TextEditingController();
-    final calfC = TextEditingController();
-    String gender = 'male';
+  void _showAddBodyFatMeasurement([HealthRecord? existing]) {
+    String formatMeasurement(double? value) =>
+        value == null ? '' : value.toStringAsFixed(1);
+
+    final weightC = TextEditingController(
+      text: formatMeasurement(existing?.weight),
+    );
+    final heightC = TextEditingController(
+      text: formatMeasurement(existing?.height),
+    );
+    final waistC = TextEditingController(
+      text: formatMeasurement(existing?.waist),
+    );
+    final neckC = TextEditingController(
+      text: formatMeasurement(existing?.neck),
+    );
+    final hipC = TextEditingController(text: formatMeasurement(existing?.hip));
+    String gender = existing?.gender ?? 'male';
 
     showModalBottomSheet(
       context: context,
@@ -1103,7 +1563,7 @@ class _HealthScreenState extends State<HealthScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'ACE Yağ Oranı Ölçümü',
+                  'Bilimsel Yağ Oranı Ölçümü',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
@@ -1117,16 +1577,36 @@ class _HealthScreenState extends State<HealthScreen>
                       set(() => gender = value.first),
                 ),
                 const SizedBox(height: 12),
-                _numberField(weightC, 'Kilo (kg)'),
-                _numberField(heightC, 'Boy (cm)'),
-                _numberField(neckC, 'Boyun ölçüsü (cm)'),
-                _numberField(shoulderC, 'Omuz ölçüsü (cm)'),
-                _numberField(chestC, 'Göğüs ölçüsü (cm)'),
-                _numberField(armC, 'Kol ölçüsü (cm)'),
-                _numberField(waistC, 'Bel ölçüsü (cm)'),
-                _numberField(hipC, 'Kalça ölçüsü (cm)'),
-                _numberField(thighC, 'Bacak ölçüsü (cm)'),
-                _numberField(calfC, 'Baldır ölçüsü (cm)'),
+                _numberField(
+                  weightC,
+                  'Kilo (kg)',
+                  onChanged: (_) => set(() {}),
+                ),
+                _numberField(heightC, 'Boy (cm)', onChanged: (_) => set(() {})),
+                _numberField(
+                  neckC,
+                  'Boyun ölçüsü (cm)',
+                  onChanged: (_) => set(() {}),
+                ),
+                _numberField(
+                  waistC,
+                  'Bel ölçüsü (cm)',
+                  onChanged: (_) => set(() {}),
+                ),
+                if (gender == 'female')
+                  _numberField(
+                    hipC,
+                    'Kalça ölçüsü (cm)',
+                    onChanged: (_) => set(() {}),
+                  ),
+                _bodyFatPreview(
+                  gender: gender,
+                  weight: weightC.text,
+                  height: heightC.text,
+                  waist: waistC.text,
+                  neck: neckC.text,
+                  hip: hipC.text,
+                ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -1137,23 +1617,13 @@ class _HealthScreenState extends State<HealthScreen>
                       final waist = _parseDouble(waistC.text);
                       final neck = _parseDouble(neckC.text);
                       final hip = _parseDouble(hipC.text);
-                      final shoulder = _parseDouble(shoulderC.text);
-                      final chest = _parseDouble(chestC.text);
-                      final arm = _parseDouble(armC.text);
-                      final thigh = _parseDouble(thighC.text);
-                      final calf = _parseDouble(calfC.text);
                       if (weight == null ||
                           height == null ||
                           waist == null ||
                           neck == null ||
-                          hip == null ||
-                          shoulder == null ||
-                          chest == null ||
-                          arm == null ||
-                          thigh == null ||
-                          calf == null) {
+                          (gender == 'female' && hip == null)) {
                         _showHealthMessage(
-                          'Tüm ölçüm alanlarını doldurmalısın.',
+                          'Navy formülü için gerekli ölçüleri doldurmalısın.',
                           isError: true,
                         );
                         return;
@@ -1173,23 +1643,27 @@ class _HealthScreenState extends State<HealthScreen>
                           bodyFatPercentage: clampedFat,
                         );
                         final record = HealthRecord(
-                          id: _uuid.v4(),
+                          id: existing?.id ?? _uuid.v4(),
                           weight: weight,
-                          date: DateTime.now(),
+                          date: existing?.date ?? DateTime.now(),
                           height: height,
                           waist: waist,
                           neck: neck,
                           hip: hip,
-                          shoulder: shoulder,
-                          chest: chest,
-                          arm: arm,
-                          thigh: thigh,
-                          calf: calf,
+                          shoulder: existing?.shoulder,
+                          chest: existing?.chest,
+                          arm: existing?.arm,
+                          thigh: existing?.thigh,
+                          calf: existing?.calf,
                           gender: gender,
                           bodyFatPercentage: clampedFat,
                           ffmi: ffmi,
                         );
-                        await _db.insertHealthRecord(record);
+                        if (existing == null) {
+                          await _db.insertHealthRecord(record);
+                        } else {
+                          await _db.updateHealthRecord(record);
+                        }
                         await _loadAll();
                         if (context.mounted) {
                           Navigator.pop(context);
@@ -1202,7 +1676,9 @@ class _HealthScreenState extends State<HealthScreen>
                         );
                       }
                     },
-                    child: const Text('Hesapla ve Kaydet'),
+                    child: Text(
+                      existing == null ? 'Hesapla ve Kaydet' : 'Güncelle',
+                    ),
                   ),
                 ),
               ],
@@ -1213,11 +1689,73 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
-  Widget _numberField(TextEditingController controller, String label) {
+  Widget _bodyFatPreview({
+    required String gender,
+    required String weight,
+    required String height,
+    required String waist,
+    required String neck,
+    required String hip,
+  }) {
+    final parsedWeight = _parseDouble(weight);
+    final parsedHeight = _parseDouble(height);
+    final parsedWaist = _parseDouble(waist);
+    final parsedNeck = _parseDouble(neck);
+    final parsedHip = _parseDouble(hip);
+
+    if (parsedWeight == null ||
+        parsedHeight == null ||
+        parsedWaist == null ||
+        parsedNeck == null ||
+        (gender == 'female' && parsedHip == null)) {
+      return const SizedBox.shrink();
+    }
+
+    try {
+      final fat = _bodyFatService.calculateAceNavyBodyFat(
+        gender: gender,
+        heightCm: parsedHeight,
+        waistCm: parsedWaist,
+        neckCm: parsedNeck,
+        hipCm: parsedHip,
+      );
+      final clampedFat = fat.clamp(2, 75).toDouble();
+      final ffmi = _bodyFatService.calculateFfmi(
+        weightKg: parsedWeight,
+        heightCm: parsedHeight,
+        bodyFatPercentage: clampedFat,
+      );
+
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _metricPill(
+                'Yağ Oranı',
+                '%${clampedFat.toStringAsFixed(2)}',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: _metricPill('FFMI', ffmi.toStringAsFixed(2))),
+          ],
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget _numberField(
+    TextEditingController controller,
+    String label, {
+    ValueChanged<String>? onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
+        onChanged: onChanged,
         keyboardType: TextInputType.number,
         decoration: InputDecoration(
           labelText: label,
@@ -1241,6 +1779,7 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
+  // ignore: unused_element
   void _showAddWeight() {
     final weightC = TextEditingController();
     final noteC = TextEditingController();
@@ -1529,4 +2068,17 @@ class _HealthScreenState extends State<HealthScreen>
       ),
     );
   }
+}
+
+enum _BodyMeasurementField {
+  weight,
+  height,
+  neck,
+  shoulder,
+  chest,
+  arm,
+  waist,
+  hip,
+  thigh,
+  calf,
 }

@@ -23,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   String _selectedCity = 'İstanbul';
   String _selectedDistrict = '';
+  String _selectedGender = 'prefer_not_to_say';
   String _loginMethod = 'email';
   String _verificationId = '';
   bool _otpSent = false;
@@ -1149,6 +1150,9 @@ class _LoginScreenState extends State<LoginScreen> {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    if (!_isLogin) {
+      values['gender'] = _selectedGender;
+    }
 
     Future<void> saveProfile() async {
       await userRef.set(values, SetOptions(merge: true));
@@ -1167,6 +1171,62 @@ class _LoginScreenState extends State<LoginScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await saveProfile();
     }
+  }
+
+  bool _isKnownGender(String? gender) =>
+      gender == 'male' || gender == 'female' || gender == 'prefer_not_to_say';
+
+  Future<void> _ensureUserGender(User user) async {
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final snapshot = await userRef.get();
+    final existingGender = snapshot.data()?['gender']?.toString();
+    if (_isKnownGender(existingGender)) return;
+    if (!mounted) return;
+
+    var selected = _selectedGender;
+    final gender = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Cinsiyet bilgisi'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selected,
+            decoration: const InputDecoration(
+              labelText: 'Cinsiyet',
+              prefixIcon: Icon(Icons.wc_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'male', child: Text('Erkek')),
+              DropdownMenuItem(value: 'female', child: Text('Kadın')),
+              DropdownMenuItem(
+                value: 'prefer_not_to_say',
+                child: Text('Belirtmek istemiyorum'),
+              ),
+            ],
+            onChanged: (value) =>
+                setDialogState(() => selected = value ?? 'prefer_not_to_say'),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, selected),
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final resolvedGender = gender ?? 'prefer_not_to_say';
+    await userRef.set({
+      'gender': resolvedGender,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    _selectedGender = resolvedGender;
   }
 
   Future<void> _signOutAfterRegistration() async {
@@ -1249,6 +1309,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (cred.user != null && !cred.user!.emailVerified) {
           await FirebaseAuth.instance.signOut();
           _showError('Lütfen önce emailinizi doğrulayın');
+        } else if (cred.user != null) {
+          await _ensureUserGender(cred.user!);
         }
       } else {
         final credential = await FirebaseAuth.instance
@@ -1318,7 +1380,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final userCred = await FirebaseAuth.instance.signInWithCredential(
         credential,
       );
-      if (userCred.user != null) await _saveUserToFirestore(userCred.user!);
+      if (userCred.user != null) {
+        await _saveUserToFirestore(userCred.user!);
+        await _ensureUserGender(userCred.user!);
+      }
     } catch (e) {
       _showError('Google girişi başarısız: $e');
     } finally {
@@ -1386,6 +1451,9 @@ class _LoginScreenState extends State<LoginScreen> {
           phone: '+90${_phoneController.text.trim()}',
         );
       }
+      if (userCred.user != null) {
+        await _ensureUserGender(userCred.user!);
+      }
     } on FirebaseAuthException catch (e) {
       String message = 'Hata: ${e.code}';
       if (e.code == 'invalid-verification-code') {
@@ -1432,6 +1500,26 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  Widget _genderField() {
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedGender,
+      decoration: const InputDecoration(
+        labelText: 'Cinsiyet',
+        prefixIcon: Icon(Icons.wc_outlined),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'male', child: Text('Erkek')),
+        DropdownMenuItem(value: 'female', child: Text('Kadın')),
+        DropdownMenuItem(
+          value: 'prefer_not_to_say',
+          child: Text('Belirtmek istemiyorum'),
+        ),
+      ],
+      onChanged: (value) =>
+          setState(() => _selectedGender = value ?? 'prefer_not_to_say'),
     );
   }
 
@@ -1619,6 +1707,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
+                        _genderField(),
+                        const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
                           initialValue: _selectedCity,
                           decoration: const InputDecoration(
@@ -1777,6 +1867,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               prefixIcon: Icon(Icons.person_outlined),
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          _genderField(),
                           const SizedBox(height: 16),
                         ],
                         Row(
